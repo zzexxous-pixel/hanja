@@ -724,7 +724,19 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         isListening = false; 
         cleanupActiveUI();
         processingTargetIndex = null;
-        appLog('Error', `음성 인식 모듈 하드웨어 에러 감지: ${event.error}`);
+
+        // 추가: 의도적인 스크롤 취소(aborted)일 때는 에러가 아닌 시스템 로그로 우회
+        if (event.error === 'aborted') {
+            if (typeof appLog === 'function') {
+                appLog('System', '사용자 스크롤 감지로 인해 음성 인식이 안전하게 취소되었습니다.');
+            }
+            return; // 에러 처리 스레드 종료
+        }
+
+        // 진짜 마이크 하드웨어 에러나 권한 에러일 때만 빨간색 Error 로그 출력
+        if (typeof appLog === 'function') {
+            appLog('Error', '음성 인식 모듈 하드웨어 에러 감지: ' + (event.error || 'unknown'));
+        }
     };
 }
 
