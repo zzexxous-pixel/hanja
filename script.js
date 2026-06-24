@@ -78,10 +78,10 @@ let defaultHunSizePx = parseInt(savedHunSize);
 let solvedHanjas = new Set();
 const tabCache = {};
 
-// 음성 제어 및 모바일 스크롤 스레스홀드 보정 변수
+// 음성 제어 및 모바일 스크롤 스레스홀드 보정 변수 (안정화 구조 수립)
 let pressStartTime = 0;
 let evaluationTargetIndex = null;
-let processingTargetIndex = null; // 비동기 음성 결과 매핑용 전용 임시 안전 공간 수립
+let processingTargetIndex = null; // 비동기 음성 분석용 핵심 전용 보존 인덱스
 let isListening = false;
 let wasHoldAction = false;
 let recognition = null;
@@ -373,7 +373,7 @@ function handleHunClick(tdElement, globalIdx) {
     }
 }
 
-// === 음성 입력 시작, 이동 및 종료 제어 (스크롤 간섭 극복 및 비동기 안정화) ===
+// === 음성 입력 시작, 이동 및 종료 제어 (iOS 및 저사양 디바이스 완벽 마감 대응) ===
 function handleVoiceStart(e) {
     if (!isQuizMode) return; 
 
@@ -387,25 +387,26 @@ function handleVoiceStart(e) {
 
     pressStartTime = Date.now();
     evaluationTargetIndex = parseInt(hanjaCell.getAttribute('data-index'), 10);
+    processingTargetIndex = evaluationTargetIndex; // iOS 사용자 탭 제약 우회용 선점 저장
     wasHoldAction = false;
 
+    // iOS 대응 핵심: 터치 이벤트가 발생한 동기 컨텍스트 스택 내에서 마이크 엔진을 즉시 구동!
+    if (recognition && !isListening) {
+        isListening = true;
+        try {
+            recognition.start();
+        } catch (err) {
+            console.error("Speech Recognition Start Error:", err);
+        }
+    }
+
+    // 300ms 동안 계속 손가락을 유지하면 녹음 펄스 애니메이션 활성화
     holdTimer = setTimeout(() => {
         isHolding = true;
-        
         const cardWrapper = hanjaCell.closest('.bg-white.border.border-slate-100');
         if (cardWrapper) {
             cardWrapper.classList.add('mic-pulse-active');
             cardWrapper.classList.add('recording-active');
-        }
-
-        if (recognition && !isListening) {
-            isListening = true;
-            processingTargetIndex = evaluationTargetIndex; // 캡처하여 홀드 비동기 데이터 분리 저장
-            try {
-                recognition.start();
-            } catch (err) {
-                console.error(err);
-            }
         }
     }, 300);
 }
@@ -422,25 +423,28 @@ function handleVoiceMove(e) {
         hasMoved = true;
         clearTimeout(holdTimer); 
 
-        if (isHolding) {
-            const targetElement = document.querySelector(`[data-action="open-modal"][data-index="${evaluationTargetIndex}"]`);
-            if (targetElement) {
-                const cardWrapper = targetElement.closest('.bg-white.border.border-slate-100');
-                if (cardWrapper) {
-                    cardWrapper.classList.remove('mic-pulse-active');
-                    cardWrapper.classList.remove('recording-active');
-                }
+        // 스크롤 중이므로 즉시 음성 수집 중단 및 무효화(abort)
+        if (recognition && isListening) {
+            try {
+                recognition.abort(); // 분석 결과 획득을 생략하고 완전 취소
+            } catch (err) {
+                console.error(err);
             }
-
-            if (recognition && isListening) {
-                recognition.stop();
-                isListening = false;
-            }
-            isHolding = false;
-            wasHoldAction = true; 
-            processingTargetIndex = null; // 취소되었으므로 분석 대상 인덱스 원천 해제
-            evaluationTargetIndex = null;
+            isListening = false;
         }
+
+        const targetElement = document.querySelector(`[data-action="open-modal"][data-index="${evaluationTargetIndex}"]`);
+        if (targetElement) {
+            const cardWrapper = targetElement.closest('.bg-white.border.border-slate-100');
+            if (cardWrapper) {
+                cardWrapper.classList.remove('mic-pulse-active', 'recording-active');
+            }
+        }
+
+        isHolding = false;
+        wasHoldAction = true; 
+        processingTargetIndex = null; // 음성 분석 대상 원천 무력화
+        evaluationTargetIndex = null;
     }
 }
 
@@ -450,30 +454,43 @@ function handleVoiceEnd(e) {
     clearTimeout(holdTimer);
 
     if (evaluationTargetIndex === null) return;
+    const duration = Date.now() - pressStartTime;
     
     const targetElement = document.querySelector(`[data-action="open-modal"][data-index="${evaluationTargetIndex}"]`);
     if (targetElement) {
         const cardWrapper = targetElement.closest('.bg-white.border.border-slate-100');
         if (cardWrapper) {
-            cardWrapper.classList.remove('mic-pulse-active');
-            cardWrapper.classList.remove('recording-active');
+            cardWrapper.classList.remove('mic-pulse-active', 'recording-active');
         }
     }
 
-    if (recognition && isListening) {
-        recognition.stop();
-        isListening = false;
-    }
-
-    if (isHolding) {
-        wasHoldAction = true; 
+    if (duration >= 300) {
+        // 300ms 이상 길게 누른 경우 (정상 홀드 녹음)
+        wasHoldAction = true;
+        if (recognition && isListening) {
+            try {
+                recognition.stop(); // 녹음을 멈추고 들어온 오디오 텍스트 분석(onresult) 요청
+            } catch (err) {
+                console.error(err);
+            }
+            isListening = false;
+        }
     } else {
-        if (hasMoved) {
-            wasHoldAction = true; 
-        } else {
-            wasHoldAction = false; 
+        // 300ms 미만 짧게 탭한 경우 (상세 팝업 모달 띄우기)
+        wasHoldAction = true; // 데스크톱 클릭 이벤트의 더블 트리거 방지
+        if (recognition && isListening) {
+            try {
+                recognition.abort(); // 모달 팝업 띄우므로 들어온 음성 데이터 무효 폐기
+            } catch (err) {
+                console.error(err);
+            }
+            isListening = false;
         }
-        processingTargetIndex = null; // 홀딩이 완성되지 않은 짧은 클릭은 처리 타겟 제거
+        processingTargetIndex = null; // 타겟 해제
+
+        if (e.type === 'touchend' || e.type === 'mouseup') {
+            openModal(evaluationTargetIndex);
+        }
     }
 
     setTimeout(() => {
@@ -558,7 +575,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     recognition.maxAlternatives = 1;
 
     recognition.onresult = function(event) {
-        // 비동기로 안전하게 묶인 처리 인덱스를 호출
+        // 비동기 스레드에서 캐싱 완료된 캡처 인덱스를 호출
         if (processingTargetIndex === null) return;
         
         let finalTranscript = '';
@@ -597,13 +614,14 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
                 if (navigator.vibrate) navigator.vibrate([40, 80, 40]);
             }
         }
-        processingTargetIndex = null; // 연산 완료 즉시 공간 리셋
+        processingTargetIndex = null; // 연산 완성 즉시 공간 정리
     };
 
     recognition.onend = function() { 
         isListening = false; 
         cleanupActiveUI();
-        setTimeout(() => { processingTargetIndex = null; }, 100);
+        // 비동기 결과 전착 지연을 보장하기 위해 여유를 두고 해제
+        setTimeout(() => { processingTargetIndex = null; }, 500);
     };
     recognition.onerror = function() { 
         isListening = false; 
