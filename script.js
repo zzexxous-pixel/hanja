@@ -81,6 +81,7 @@ const tabCache = {};
 // 음성 제어 및 모바일 스크롤 스레스홀드 보정 변수
 let pressStartTime = 0;
 let evaluationTargetIndex = null;
+let processingTargetIndex = null; // 비동기 음성 결과 매핑용 전용 임시 안전 공간 수립
 let isListening = false;
 let wasHoldAction = false;
 let recognition = null;
@@ -152,6 +153,7 @@ function updateModalStarState(index) {
 function preRenderStaticTables() {
     for (let t = 1; t <= 6; t++) {
         const startIdx = (t - 1) * 100;
+        const startIdxText = startIdx + 1;
         const endIdx = startIdx + 100;
         const pageData = hanjaData.slice(startIdx, endIdx).map((item, localIdx) => ({
             ...item,
@@ -160,7 +162,7 @@ function preRenderStaticTables() {
         
         const tableDiv = document.createElement('div');
         tableDiv.className = "bg-white border border-slate-200 overflow-hidden mb-6";
-        tableDiv.innerHTML = generateTableHTML(t, pageData, `${startIdx + 1} ~ ${endIdx}자`);
+        tableDiv.innerHTML = generateTableHTML(t, pageData, `${startIdxText} ~ ${endIdx}자`);
         tabCache[t] = tableDiv;
     }
 }
@@ -371,6 +373,7 @@ function handleHunClick(tdElement, globalIdx) {
     }
 }
 
+// === 음성 입력 시작, 이동 및 종료 제어 (스크롤 간섭 극복 및 비동기 안정화) ===
 function handleVoiceStart(e) {
     if (!isQuizMode) return; 
 
@@ -397,6 +400,7 @@ function handleVoiceStart(e) {
 
         if (recognition && !isListening) {
             isListening = true;
+            processingTargetIndex = evaluationTargetIndex; // 캡처하여 홀드 비동기 데이터 분리 저장
             try {
                 recognition.start();
             } catch (err) {
@@ -434,6 +438,7 @@ function handleVoiceMove(e) {
             }
             isHolding = false;
             wasHoldAction = true; 
+            processingTargetIndex = null; // 취소되었으므로 분석 대상 인덱스 원천 해제
             evaluationTargetIndex = null;
         }
     }
@@ -468,6 +473,7 @@ function handleVoiceEnd(e) {
         } else {
             wasHoldAction = false; 
         }
+        processingTargetIndex = null; // 홀딩이 완성되지 않은 짧은 클릭은 처리 타겟 제거
     }
 
     setTimeout(() => {
@@ -536,6 +542,14 @@ function speakHanja() {
     }
 }
 
+// 방어적 코딩: 녹음 활성화 UI를 일괄 초기화하는 헬퍼 함수
+const cleanupActiveUI = () => {
+    const activeCards = document.querySelectorAll('.mic-pulse-active, .recording-active');
+    activeCards.forEach(card => {
+        card.classList.remove('mic-pulse-active', 'recording-active');
+    });
+};
+
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
@@ -544,7 +558,8 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     recognition.maxAlternatives = 1;
 
     recognition.onresult = function(event) {
-        if (evaluationTargetIndex === null) return;
+        // 비동기로 안전하게 묶인 처리 인덱스를 호출
+        if (processingTargetIndex === null) return;
         
         let finalTranscript = '';
         for (let i = event.resultIndex; i < event.results.length; ++i) {
@@ -555,11 +570,11 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 
         if (finalTranscript) {
             const cleanSpoken = finalTranscript.replace(/[\.\?\!\,\s]+/g, '');
-            const cleanTarget = hanjaData[evaluationTargetIndex].m.replace(/\s+/g, '');
+            const cleanTarget = hanjaData[processingTargetIndex].m.replace(/\s+/g, '');
 
             const similarity = calculatePhoneticSimilarity(cleanSpoken, cleanTarget);
 
-            const targetElement = document.querySelector(`[data-action="open-modal"][data-index="${evaluationTargetIndex}"]`);
+            const targetElement = document.querySelector(`[data-action="open-modal"][data-index="${processingTargetIndex}"]`);
             const card = targetElement ? targetElement.closest('.bg-white.border.border-slate-100') : null;
 
             if (similarity >= 0.6) {
@@ -567,7 +582,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
                     card.classList.add('flash-correct');
                     setTimeout(() => card.classList.remove('flash-correct'), 600);
                 }
-                toggleSolvedState(evaluationTargetIndex, true);
+                toggleSolvedState(processingTargetIndex, true);
                 
                 if (navigator.vibrate) navigator.vibrate(40);
             } else {
@@ -575,17 +590,26 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
                     card.classList.add('flash-incorrect');
                     setTimeout(() => card.classList.remove('flash-incorrect'), 600);
                 }
-                if (!bookmarks.includes(evaluationTargetIndex)) {
-                    toggleBookmark(evaluationTargetIndex);
+                if (!bookmarks.includes(processingTargetIndex)) {
+                    toggleBookmark(processingTargetIndex);
                 }
                 
                 if (navigator.vibrate) navigator.vibrate([40, 80, 40]);
             }
         }
+        processingTargetIndex = null; // 연산 완료 즉시 공간 리셋
     };
 
-    recognition.onend = function() { isListening = false; };
-    recognition.onerror = function() { isListening = false; };
+    recognition.onend = function() { 
+        isListening = false; 
+        cleanupActiveUI();
+        setTimeout(() => { processingTargetIndex = null; }, 100);
+    };
+    recognition.onerror = function() { 
+        isListening = false; 
+        cleanupActiveUI();
+        processingTargetIndex = null;
+    };
 }
 
 window.onload = function() {
