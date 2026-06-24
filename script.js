@@ -78,7 +78,7 @@ let defaultHunSizePx = parseInt(savedHunSize);
 let solvedHanjas = new Set();
 const tabCache = {};
 
-// 음성 제어 및 모바일 스크롤 스레스홀드 보정 변수 (안정화 구조 수립)
+// 음성 제어 및 모바일 스크롤 스레스홀드 보정 변수
 let pressStartTime = 0;
 let evaluationTargetIndex = null;
 let processingTargetIndex = null; // 비동기 음성 분석용 핵심 전용 보존 인덱스
@@ -456,6 +456,7 @@ function handleVoiceEnd(e) {
     if (evaluationTargetIndex === null) return;
     const duration = Date.now() - pressStartTime;
     
+    // 반응성을 위해 시각적 UI는 손가락을 떼는 순간 0ms 즉시 제거
     const targetElement = document.querySelector(`[data-action="open-modal"][data-index="${evaluationTargetIndex}"]`);
     if (targetElement) {
         const cardWrapper = targetElement.closest('.bg-white.border.border-slate-100');
@@ -465,19 +466,22 @@ function handleVoiceEnd(e) {
     }
 
     if (duration >= 300) {
-        // 300ms 이상 길게 누른 경우 (정상 홀드 녹음)
         wasHoldAction = true;
-        if (recognition && isListening) {
-            try {
-                recognition.stop(); // 녹음을 멈추고 들어온 오디오 텍스트 분석(onresult) 요청
-            } catch (err) {
-                console.error(err);
+        
+        // [🔥 핵심 교정]: 짧은 단어('뿔 각' 등)의 끝음과 음성 여운이 짤리지 않도록 400ms의 잔음 꼬리 버퍼(Buffer) 시간을 확보한 뒤 마이크를 순차 정지시킵니다.
+        const recordTimeoutTarget = recognition;
+        setTimeout(() => {
+            if (recordTimeoutTarget && isListening) {
+                try {
+                    recordTimeoutTarget.stop(); 
+                } catch (err) {
+                    console.error(err);
+                }
+                isListening = false;
             }
-            isListening = false;
-        }
+        }, 400);
     } else {
-        // 300ms 미만 짧게 탭한 경우 (상세 팝업 모달 띄우기)
-        wasHoldAction = true; // 데스크톱 클릭 이벤트의 더블 트리거 방지
+        wasHoldAction = true; 
         if (recognition && isListening) {
             try {
                 recognition.abort(); // 모달 팝업 띄우므로 들어온 음성 데이터 무효 폐기
@@ -486,7 +490,7 @@ function handleVoiceEnd(e) {
             }
             isListening = false;
         }
-        processingTargetIndex = null; // 타겟 해제
+        processingTargetIndex = null; 
 
         if (e.type === 'touchend' || e.type === 'mouseup') {
             openModal(evaluationTargetIndex);
@@ -559,7 +563,6 @@ function speakHanja() {
     }
 }
 
-// 방어적 코딩: 녹음 활성화 UI를 일괄 초기화하는 헬퍼 함수
 const cleanupActiveUI = () => {
     const activeCards = document.querySelectorAll('.mic-pulse-active, .recording-active');
     activeCards.forEach(card => {
@@ -575,7 +578,6 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     recognition.maxAlternatives = 1;
 
     recognition.onresult = function(event) {
-        // 비동기 스레드에서 캐싱 완료된 캡처 인덱스를 호출
         if (processingTargetIndex === null) return;
         
         let finalTranscript = '';
@@ -614,13 +616,13 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
                 if (navigator.vibrate) navigator.vibrate([40, 80, 40]);
             }
         }
-        processingTargetIndex = null; // 연산 완성 즉시 공간 정리
+        processingTargetIndex = null; 
     };
 
     recognition.onend = function() { 
         isListening = false; 
         cleanupActiveUI();
-        // 비동기 결과 전착 지연을 보장하기 위해 여유를 두고 해제
+        // 잔음 버퍼 연산 처리가 완료될 때까지 안전하게 인덱스를 보존 후 해제
         setTimeout(() => { processingTargetIndex = null; }, 500);
     };
     recognition.onerror = function() { 
