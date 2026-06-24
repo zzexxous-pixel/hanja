@@ -207,7 +207,10 @@ function generateTableHTML(t, pageData, titleLabel) {
             <div class="bg-white border border-slate-100 rounded-xl p-3 flex flex-col items-center relative hover:bg-slate-50 transition-all shadow-sm">
                 <div data-action="toggle-bookmark" data-index="${globalIdx}" 
                      class="w-full flex justify-between items-center mb-1 cursor-pointer bg-transparent select-none">
-                    <span class="text-[10px] font-mono font-bold text-slate-400 leading-none">#${globalIdx + 1}</span>
+                    <span class="text-[10px] font-mono font-bold text-slate-400 leading-none flex items-center gap-1">
+                        <i class="fa-solid fa-microphone text-red-500 recording-icon hidden animate-pulse"></i>
+                        #${globalIdx + 1}
+                    </span>
                     <span class="star-wrapper-${globalIdx} flex items-center justify-center h-full ${isStarred ? 'text-amber-400' : 'text-slate-200 hover:text-slate-400'} text-base">
                         <i class="fa-solid fa-star"></i>
                     </span>
@@ -228,6 +231,7 @@ function generateTableHTML(t, pageData, titleLabel) {
     return gridHTML;
 }
 
+// 페이지 좌우 이동용 메서드 (즐겨찾기 상태 시 비활성 처리)
 function prevPage() {
     if (activeTab === 7) return;
     let target = activeTab - 1;
@@ -243,19 +247,23 @@ function nextPage() {
     switchTab(target);
 }
 
+// 즐겨찾기 버튼의 토글 동작 제어 함수
 function toggleFavorites() {
     if (activeTab === 7) {
+        // 현재 즐겨찾기 화면일 경우 토글하여 이전 보던 페이지 탭으로 복귀
         switchTab(preFavoriteTab);
     } else {
+        // 이전 보던 일반 탭(1~6) 정보를 저장하고 즐겨찾기로 이동
         preFavoriteTab = activeTab;
         switchTab(7);
     }
 }
 
+// 탭 스왑 및 스타일 동적 바인딩 처리 (지정 요구사항에 따른 완벽 동기화)
 function switchTab(tabNum) {
     activeTab = tabNum;
     const container = document.getElementById('table-view-container');
-    container.innerHTML = ''; 
+    container.innerHTML = ''; // 기존 DOM 트리 메모리에서 깔끔하게 비우기
 
     if (tabNum === 7) {
         activeFavoriteIndices = [...bookmarks];
@@ -271,9 +279,11 @@ function switchTab(tabNum) {
     const btnNext = document.getElementById('btn-next-page');
 
     if (tabNum === 7) {
+        // 즐겨찾기 탭 활성화 상태 스타일 (yellow 꽉 찬 선명한 디자인)
         if (tabBtn7) {
             tabBtn7.className = "w-10 h-10 text-xs font-bold rounded-lg transition-all text-slate-950 bg-yellow-400 hover:bg-yellow-300 border border-yellow-400 shadow-[0_0_12px_rgba(234,179,8,0.3)] flex items-center justify-center shrink-0";
         }
+        // 즐겨찾기 화면일 때는 페이지 이동 컴포넌트를 비활성화(반투명) 처리
         if (pagerWrapper) {
             pagerWrapper.className = "flex items-center gap-1 bg-slate-700/40 p-1 rounded-lg h-10 text-slate-400 shadow-none shrink-0 select-none pointer-events-none opacity-50";
         }
@@ -287,9 +297,11 @@ function switchTab(tabNum) {
             pageIndicator.innerText = "★ / 6";
         }
     } else {
+        // 즐겨찾기 비활성화 (일반 1~6 페이지 구동 상태 - 더욱 잘보이게 노랑-yellow 보더 추가 및 배경 불투명도 증가)
         if (tabBtn7) {
             tabBtn7.className = "w-10 h-10 text-xs font-bold rounded-lg transition-all text-yellow-300 hover:text-yellow-100 bg-yellow-500/15 hover:bg-yellow-500/25 border border-yellow-500/45 flex items-center justify-center shrink-0";
         }
+        // 페이지 스위처 활성화 상태 복구 (좌우 삼각형 버튼의 뚜렷한 별도 버튼 스타일 적용)
         if (pagerWrapper) {
             pagerWrapper.className = "flex items-center gap-1 bg-blue-950/40 p-1 rounded-lg h-10 text-white shadow-sm transition-all duration-200 shrink-0 select-none";
         }
@@ -305,6 +317,7 @@ function switchTab(tabNum) {
     }
 }
 
+// 퀴즈(가리기) 모드 토글 (너비 w-28 규격을 엄격하게 동기화)
 function toggleQuizMode() {
     isQuizMode = !isQuizMode;
     const btn = document.getElementById('btn-toggle-quiz');
@@ -366,6 +379,9 @@ function handleHunClick(tdElement, globalIdx) {
 
 // === 음성 입력 시작 및 종료 핸들러 제어부 (대책 A 적용) ===
 function handleVoiceStart(e) {
+    // [보정]: 훈음 가리기(isQuizMode === true) 상태가 아닐 때는 마이크 작동을 원천 무시
+    if (!isQuizMode) return;
+
     const hanjaCell = e.target.closest('[data-action="open-modal"]');
     if (!hanjaCell) return;
     
@@ -377,10 +393,11 @@ function handleVoiceStart(e) {
     evaluationTargetIndex = parseInt(hanjaCell.getAttribute('data-index'), 10);
     wasHoldAction = false;
 
-    // 제안 2번 적용: 마이크 활성화 시 칸 전체 펄스 애니메이션 활성화
+    // 제안 2번 적용: 마이크 활성화 시 칸 전체 '빨간색 펄스' 및 녹음중 마이크 노출 활성화
     const cardWrapper = hanjaCell.closest('.bg-white.border.border-slate-100');
     if (cardWrapper) {
         cardWrapper.classList.add('mic-pulse-active');
+        cardWrapper.classList.add('recording-active');
     }
 
     if (recognition && !isListening) {
@@ -394,6 +411,16 @@ function handleVoiceStart(e) {
 }
 
 function handleVoiceEnd(e) {
+    // 훈음 가리기 상태가 아닐 때는 팝업 제어 충돌 처리 및 마이크 흐름 예외 차단
+    if (!isQuizMode) {
+        const hanjaCell = e.target.closest('[data-action="open-modal"]');
+        if (hanjaCell) {
+            const idx = parseInt(hanjaCell.getAttribute('data-index'), 10);
+            openModal(idx);
+        }
+        return;
+    }
+
     if (evaluationTargetIndex === null) return;
     const duration = Date.now() - pressStartTime;
     
@@ -402,6 +429,7 @@ function handleVoiceEnd(e) {
         const cardWrapper = targetElement.closest('.bg-white.border.border-slate-100');
         if (cardWrapper) {
             cardWrapper.classList.remove('mic-pulse-active');
+            cardWrapper.classList.remove('recording-active');
         }
     }
 
@@ -417,7 +445,6 @@ function handleVoiceEnd(e) {
             openModal(evaluationTargetIndex);
         }
     }
-    // 인덱스 초기화는 onresult 분석 시점을 보존하기 위해 처리하지 않음
 }
 
 let currentVoiceHanja = '';
@@ -455,7 +482,7 @@ function openModal(index) {
 
 function closeModal() {
     const modal = document.getElementById('detail-modal');
-    modal.classList.add('opacity-0');
+    modal.add('opacity-0');
     modal.querySelector('.transform').classList.add('scale-95');
     modal.querySelector('.transform').classList.remove('scale-100');
     setTimeout(() => {
@@ -504,17 +531,14 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             const card = targetElement ? targetElement.closest('.bg-white.border.border-slate-100') : null;
 
             if (similarity >= 0.6) {
-                // 정답 피드백 : 한자 칸 전체 초록색 한번 깜빡임 및 블러 해제
                 if (card) {
                     card.classList.add('flash-correct');
                     setTimeout(() => card.classList.remove('flash-correct'), 600);
                 }
                 toggleSolvedState(evaluationTargetIndex, true);
                 
-                // 제안 3번 변형 적용 : 아주 짧은 진동 피드백 (효과음 사운드 없음)
                 if (navigator.vibrate) navigator.vibrate(40);
             } else {
-                // 오답 피드백 : 한자 칸 전체 주황색 한번 깜빡임 및 자동 즐겨찾기 활성화
                 if (card) {
                     card.classList.add('flash-incorrect');
                     setTimeout(() => card.classList.remove('flash-incorrect'), 600);
@@ -523,7 +547,6 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
                     toggleBookmark(evaluationTargetIndex);
                 }
                 
-                // 제안 3번 변형 적용 : 짧은 진동 두 번 피드백 (효과음 사운드 없음)
                 if (navigator.vibrate) navigator.vibrate([40, 80, 40]);
             }
         }
@@ -541,7 +564,6 @@ window.onload = function() {
     activeFavoriteIndices = [...bookmarks];
     switchTab(1);
 
-    // 제안 1번 적용: 마이크 사용 권한 사전 요청 제어 로직 수립
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         navigator.mediaDevices.getUserMedia({ audio: true })
         .then(stream => { stream.getTracks().forEach(track => track.stop()); })
@@ -550,7 +572,6 @@ window.onload = function() {
 
     const mainContainer = document.getElementById('table-view-container');
     
-    // 마이크 작동 감지를 위한 홀드 액션 이벤트 정밀 바인딩
     mainContainer.addEventListener('mousedown', handleVoiceStart);
     mainContainer.addEventListener('touchstart', handleVoiceStart, { passive: false });
     mainContainer.addEventListener('mouseup', handleVoiceEnd);
@@ -578,7 +599,6 @@ window.onload = function() {
         const hanjaCell = event.target.closest('[data-action="open-modal"]');
         if (hanjaCell) {
             event.stopPropagation();
-            // 대책 A: 길게 누르고 뗐을 때 발생하는 모달 팝업 가로채기 차단
             if (wasHoldAction) {
                 wasHoldAction = false;
                 return;

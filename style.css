@@ -99,16 +99,21 @@ body.quiz-mode .quiz-blur-target:not(.solved) {
     }
 }
 
-/* === 제안 2번 적용 : 마이크 활성화 시 시각적 펄스(Pulse) 애니메이션 === */
+/* === 마이크 활성화 시 시각적 빨간색 펄스(Pulse) 애니메이션 === */
 @keyframes mic-pulse {
-    0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.6); }
-    70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+    0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
+    70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
 .mic-pulse-active {
     animation: mic-pulse 1.2s infinite !important;
-    border-color: #3b82f6 !important;
-    background-color: #f0f6ff !important;
+    border-color: #ef4444 !important;
+    background-color: #fef2f2 !important;
+}
+
+/* 녹음 활성화 시 왼쪽 위 마이크 아이콘 노출 */
+.recording-active .recording-icon {
+    display: inline-block !important;
 }
 
 /* === 정답 및 오답 전용 일회성 배경색 깜빡임 피드백 키프레임 === */
