@@ -231,7 +231,6 @@ function generateTableHTML(t, pageData, titleLabel) {
     return gridHTML;
 }
 
-// 페이지 좌우 이동용 메서드 (즐겨찾기 상태 시 비활성 처리)
 function prevPage() {
     if (activeTab === 7) return;
     let target = activeTab - 1;
@@ -239,7 +238,6 @@ function prevPage() {
     switchTab(target);
 }
 
-// 다음 페이지 이동용 메서드
 function nextPage() {
     if (activeTab === 7) return;
     let target = activeTab + 1;
@@ -247,23 +245,19 @@ function nextPage() {
     switchTab(target);
 }
 
-// 즐겨찾기 버튼의 토글 동작 제어 함수
 function toggleFavorites() {
     if (activeTab === 7) {
-        // 현재 즐겨찾기 화면일 경우 토글하여 이전 보던 페이지 탭으로 복귀
         switchTab(preFavoriteTab);
     } else {
-        // 이전 보던 일반 탭(1~6) 정보를 저장하고 즐겨찾기로 이동
         preFavoriteTab = activeTab;
         switchTab(7);
     }
 }
 
-// 탭 스왑 및 스타일 동적 바인딩 처리 (지정 요구사항에 따른 완벽 동기화)
 function switchTab(tabNum) {
     activeTab = tabNum;
     const container = document.getElementById('table-view-container');
-    container.innerHTML = ''; // 기존 DOM 트리 메모리에서 깔끔하게 비우기
+    container.innerHTML = ''; 
 
     if (tabNum === 7) {
         activeFavoriteIndices = [...bookmarks];
@@ -279,11 +273,9 @@ function switchTab(tabNum) {
     const btnNext = document.getElementById('btn-next-page');
 
     if (tabNum === 7) {
-        // 즐겨찾기 탭 활성화 상태 스타일 (yellow 꽉 찬 선명한 디자인)
         if (tabBtn7) {
             tabBtn7.className = "w-10 h-10 text-xs font-bold rounded-lg transition-all text-slate-950 bg-yellow-400 hover:bg-yellow-300 border border-yellow-400 shadow-[0_0_12px_rgba(234,179,8,0.3)] flex items-center justify-center shrink-0";
         }
-        // 즐겨찾기 화면일 때는 페이지 이동 컴포넌트를 비활성화(반투명) 처리
         if (pagerWrapper) {
             pagerWrapper.className = "flex items-center gap-1 bg-slate-700/40 p-1 rounded-lg h-10 text-slate-400 shadow-none shrink-0 select-none pointer-events-none opacity-50";
         }
@@ -297,11 +289,9 @@ function switchTab(tabNum) {
             pageIndicator.innerText = "★ / 6";
         }
     } else {
-        // 즐겨찾기 비활성화 (일반 1~6 페이지 구동 상태 - 더욱 잘보이게 노랑-yellow 보더 추가 및 배경 불투명도 증가)
         if (tabBtn7) {
             tabBtn7.className = "w-10 h-10 text-xs font-bold rounded-lg transition-all text-yellow-300 hover:text-yellow-100 bg-yellow-500/15 hover:bg-yellow-500/25 border border-yellow-500/45 flex items-center justify-center shrink-0";
         }
-        // 페이지 스위처 활성화 상태 복구 (좌우 삼각형 버튼의 뚜렷한 별도 버튼 스타일 적용)
         if (pagerWrapper) {
             pagerWrapper.className = "flex items-center gap-1 bg-blue-950/40 p-1 rounded-lg h-10 text-white shadow-sm transition-all duration-200 shrink-0 select-none";
         }
@@ -317,7 +307,6 @@ function switchTab(tabNum) {
     }
 }
 
-// 퀴즈(가리기) 모드 토글 (너비 w-28 규격을 엄격하게 동기화)
 function toggleQuizMode() {
     isQuizMode = !isQuizMode;
     const btn = document.getElementById('btn-toggle-quiz');
@@ -377,23 +366,21 @@ function handleHunClick(tdElement, globalIdx) {
     }
 }
 
-// === 음성 입력 시작 및 종료 핸들러 제어부 (대책 A 적용) ===
+// === 음성 입력 시작 및 종료 핸들러 제어부 (대책 A 정합성 고도화) ===
 function handleVoiceStart(e) {
-    // [보정]: 훈음 가리기(isQuizMode === true) 상태가 아닐 때는 마이크 작동을 원천 무시
-    if (!isQuizMode) return;
+    if (!isQuizMode) return; // 퀴즈 가리기 상태가 아니면 이벤트 가로채기 자체를 하지 않음
 
     const hanjaCell = e.target.closest('[data-action="open-modal"]');
     if (!hanjaCell) return;
     
     if (e.type === 'touchstart') {
-        e.preventDefault(); // 스크롤/셀렉션 방지 및 터치 보정
+        e.preventDefault(); 
     }
 
     pressStartTime = Date.now();
     evaluationTargetIndex = parseInt(hanjaCell.getAttribute('data-index'), 10);
     wasHoldAction = false;
 
-    // 제안 2번 적용: 마이크 활성화 시 칸 전체 '빨간색 펄스' 및 녹음중 마이크 노출 활성화
     const cardWrapper = hanjaCell.closest('.bg-white.border.border-slate-100');
     if (cardWrapper) {
         cardWrapper.classList.add('mic-pulse-active');
@@ -411,15 +398,7 @@ function handleVoiceStart(e) {
 }
 
 function handleVoiceEnd(e) {
-    // 훈음 가리기 상태가 아닐 때는 팝업 제어 충돌 처리 및 마이크 흐름 예외 차단
-    if (!isQuizMode) {
-        const hanjaCell = e.target.closest('[data-action="open-modal"]');
-        if (hanjaCell) {
-            const idx = parseInt(hanjaCell.getAttribute('data-index'), 10);
-            openModal(idx);
-        }
-        return;
-    }
+    if (!isQuizMode) return; // 퀴즈 가리기 상태가 아니면 무시
 
     if (evaluationTargetIndex === null) return;
     const duration = Date.now() - pressStartTime;
@@ -439,12 +418,14 @@ function handleVoiceEnd(e) {
     }
 
     if (duration >= 300) {
-        wasHoldAction = true; // 홀드 액션으로 확정하여 click 이벤트 무력화 선언
+        wasHoldAction = true; 
     } else {
-        if (e.type === 'touchend') {
+        if (e.type === 'touchend' || e.type === 'mouseup') {
             openModal(evaluationTargetIndex);
+            wasHoldAction = true; // 데스크톱 click 이벤트를 방어하기 위해 플래그 수립
         }
     }
+    evaluationTargetIndex = null;
 }
 
 let currentVoiceHanja = '';
@@ -480,11 +461,18 @@ function openModal(index) {
     }, 10);
 }
 
+// 모달 닫기 정밀 교정 (classList 누락 오류 완벽 해결)
 function closeModal() {
     const modal = document.getElementById('detail-modal');
-    modal.add('opacity-0');
-    modal.querySelector('.transform').classList.add('scale-95');
-    modal.querySelector('.transform').classList.remove('scale-100');
+    if (!modal) return;
+    modal.classList.add('opacity-0');
+    
+    const transformTarget = modal.querySelector('.transform');
+    if (transformTarget) {
+        transformTarget.classList.add('scale-95');
+        transformTarget.classList.remove('scale-100');
+    }
+    
     setTimeout(() => {
         modal.classList.add('hidden');
         modal.classList.remove('flex');
@@ -524,7 +512,6 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             const cleanSpoken = finalTranscript.replace(/[\.\?\!\,\s]+/g, '');
             const cleanTarget = hanjaData[evaluationTargetIndex].m.replace(/\s+/g, '');
 
-            // 60% 유사도 기반 정답 인정 판단 매칭 연산 수행
             const similarity = calculatePhoneticSimilarity(cleanSpoken, cleanTarget);
 
             const targetElement = document.querySelector(`[data-action="open-modal"][data-index="${evaluationTargetIndex}"]`);
