@@ -91,6 +91,10 @@ let holdTimer = null;
 let isHolding = false;
 let hasMoved = false;
 
+// 개발자 비밀 디버그 콘솔 트리거 변수
+let titleClickCount = 0;
+let titleClickTimer = null;
+
 function saveBookmarks() {
     localStorage.setItem('hanja_bookmarks', JSON.stringify(bookmarks));
 }
@@ -104,6 +108,8 @@ function adjustFontSize(amount) {
 
     localStorage.setItem('hanja_size', defaultHanjaSizePx);
     localStorage.setItem('hun_size', defaultHunSizePx);
+
+    appLog('System', `글꼴 변경 ➡️ 한자: ${defaultHanjaSizePx}px / 훈음: ${defaultHunSizePx}px`);
 }
 
 function toggleBookmark(index, event) {
@@ -123,6 +129,8 @@ function toggleBookmark(index, event) {
 
     updateCellStarUI(index, !isRemoving);
     updateModalStarState(index);
+
+    appLog('System', `즐겨찾기 토글 ➡️ #${index + 1} (${hanjaData[index].h}) : ${isRemoving ? '제거됨' : '등록됨'}`);
 }
 
 function updateCellStarUI(index, isStarred) {
@@ -165,6 +173,7 @@ function preRenderStaticTables() {
         tableDiv.innerHTML = generateTableHTML(t, pageData, `${startIdxText} ~ ${endIdx}자`);
         tabCache[t] = tableDiv;
     }
+    appLog('System', '고정 탭 1 ~ 6 선행 렌더링 캐싱 엔진 수립 완료');
 }
 
 function buildFavoritesDOM() {
@@ -312,6 +321,8 @@ function switchTab(tabNum) {
             pageIndicator.innerText = `${tabNum} / 6`;
         }
     }
+
+    appLog('System', `화면 탭 전환 ➡️ 대상 탭: ${tabNum === 7 ? '★ 즐겨찾기' : tabNum + '페이지'}`);
 }
 
 function toggleQuizMode() {
@@ -341,6 +352,8 @@ function toggleQuizMode() {
             cachedElements.forEach(el => el.classList.remove('solved'));
         }
     }
+
+    appLog('System', `훈음 가리기 상태 전환 ➡️ 현재: ${isQuizMode ? 'ON (블러 마스킹 수립)' : 'OFF (일반 가동)'}`);
 }
 
 function toggleSolvedState(globalIdx, forceSolved) {
@@ -373,7 +386,7 @@ function handleHunClick(tdElement, globalIdx) {
     }
 }
 
-// === 음성 입력 시작, 이동 및 종료 제어 (iOS 및 저사양 디바이스 완벽 마감 대응) ===
+// === 음성 입력 시작, 이동 및 종료 제어 ===
 function handleVoiceStart(e) {
     if (!isQuizMode) return; 
 
@@ -387,20 +400,22 @@ function handleVoiceStart(e) {
 
     pressStartTime = Date.now();
     evaluationTargetIndex = parseInt(hanjaCell.getAttribute('data-index'), 10);
-    processingTargetIndex = evaluationTargetIndex; // iOS 사용자 탭 제약 우회용 선점 저장
+    processingTargetIndex = evaluationTargetIndex; 
     wasHoldAction = false;
 
-    // iOS 대응 핵심: 터치 이벤트가 발생한 동기 컨텍스트 스택 내에서 마이크 엔진을 즉시 구동!
+    appLog('System', `한자 터치 감지 ➡️ #${evaluationTargetIndex + 1} (${hanjaData[evaluationTargetIndex].h})`);
+
+    // iOS/크롬 보안 샌드박스 정책 우회: 동기 이벤트 핸들러 흐름에서 마이크 세션 가용 선점
     if (recognition && !isListening) {
         isListening = true;
         try {
             recognition.start();
+            appLog('System', '웹 오디오 API 오디오 캡처 인스턴스 시동 완료');
         } catch (err) {
-            console.error("Speech Recognition Start Error:", err);
+            appLog('Error', `마이크 시동 오류: ${err.message}`);
         }
     }
 
-    // 300ms 동안 계속 손가락을 유지하면 녹음 펄스 애니메이션 활성화
     holdTimer = setTimeout(() => {
         isHolding = true;
         const cardWrapper = hanjaCell.closest('.bg-white.border.border-slate-100');
@@ -408,6 +423,7 @@ function handleVoiceStart(e) {
             cardWrapper.classList.add('mic-pulse-active');
             cardWrapper.classList.add('recording-active');
         }
+        appLog('System', '300ms 홀드 임계 타임 돌파. 빨간색 펄스 및 마이크 아이콘 활성화');
     }, 300);
 }
 
@@ -423,10 +439,9 @@ function handleVoiceMove(e) {
         hasMoved = true;
         clearTimeout(holdTimer); 
 
-        // 스크롤 중이므로 즉시 음성 수집 중단 및 무효화(abort)
         if (recognition && isListening) {
             try {
-                recognition.abort(); // 분석 결과 획득을 생략하고 완전 취소
+                recognition.abort(); // 분석 없이 세션 즉시 취소 처리
             } catch (err) {
                 console.error(err);
             }
@@ -443,8 +458,10 @@ function handleVoiceMove(e) {
 
         isHolding = false;
         wasHoldAction = true; 
-        processingTargetIndex = null; // 음성 분석 대상 원천 무력화
+        processingTargetIndex = null; 
         evaluationTargetIndex = null;
+
+        appLog('System', `스크롤 임계값(10px) 이탈 감지 ➡️ 이동거리 ${distance.toFixed(1)}px (평가 취소 및 스크롤 전환)`);
     }
 }
 
@@ -456,7 +473,7 @@ function handleVoiceEnd(e) {
     if (evaluationTargetIndex === null) return;
     const duration = Date.now() - pressStartTime;
     
-    // 반응성을 위해 시각적 UI는 손가락을 떼는 순간 0ms 즉시 제거
+    // 반응성을 위해 시각적 UI는 손가락을 떼는 즉시 0ms 단위로 선제 회수
     const targetElement = document.querySelector(`[data-action="open-modal"][data-index="${evaluationTargetIndex}"]`);
     if (targetElement) {
         const cardWrapper = targetElement.closest('.bg-white.border.border-slate-100');
@@ -467,13 +484,15 @@ function handleVoiceEnd(e) {
 
     if (duration >= 300) {
         wasHoldAction = true;
+        appLog('System', `꾹 누르기(Hold) 종료 감지 (총 ${duration}ms 유지). 잔음 버퍼(400ms) 카운트다운 시작`);
         
-        // [🔥 핵심 교정]: 짧은 단어('뿔 각' 등)의 끝음과 음성 여운이 짤리지 않도록 400ms의 잔음 꼬리 버퍼(Buffer) 시간을 확보한 뒤 마이크를 순차 정지시킵니다.
+        // 잔음 꼬리 버퍼(Tail Time) 400ms 연장 메커니즘 기동
         const recordTimeoutTarget = recognition;
         setTimeout(() => {
             if (recordTimeoutTarget && isListening) {
                 try {
                     recordTimeoutTarget.stop(); 
+                    appLog('System', '잔음 버퍼 만료 ➡️ 오디오 캡처 종료(stop) 및 최종 텍스트 번역 요청');
                 } catch (err) {
                     console.error(err);
                 }
@@ -484,13 +503,14 @@ function handleVoiceEnd(e) {
         wasHoldAction = true; 
         if (recognition && isListening) {
             try {
-                recognition.abort(); // 모달 팝업 띄우므로 들어온 음성 데이터 무효 폐기
+                recognition.abort(); 
             } catch (err) {
                 console.error(err);
             }
             isListening = false;
         }
         processingTargetIndex = null; 
+        appLog('System', `단순 클릭 터치 다운 감지 (${duration}ms 유지). 음성 세션 파기 및 팝업 대기`);
 
         if (e.type === 'touchend' || e.type === 'mouseup') {
             openModal(evaluationTargetIndex);
@@ -533,6 +553,8 @@ function openModal(index) {
         modal.querySelector('.transform').classList.remove('scale-95');
         modal.querySelector('.transform').classList.add('scale-100');
     }, 10);
+
+    appLog('System', `상세 모달 팝업 열림 ➡️ #${index + 1} (${data.h} : ${data.m})`);
 }
 
 function closeModal() {
@@ -550,6 +572,8 @@ function closeModal() {
         modal.classList.add('hidden');
         modal.classList.remove('flex');
     }, 300);
+
+    appLog('System', '상세 모달 팝업 닫힘');
 }
 
 function speakHanja() {
@@ -558,9 +582,74 @@ function speakHanja() {
         utterance.lang = 'ko-KR';
         utterance.rate = 0.9;
         window.speechSynthesis.speak(utterance);
+        appLog('System', `TTS 훈음 음성 재생 ➡️ "${currentVoiceHun}"`);
     } else {
         console.warn('Speech synthesis is not supported on this browser.');
     }
+}
+
+// 비밀 개발용 콘솔창 제어 유틸리티
+function handleTitleClick(e) {
+    if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+    }
+    titleClickCount++;
+    clearTimeout(titleClickTimer);
+    
+    if (titleClickCount >= 5) {
+        toggleDevConsole();
+        titleClickCount = 0;
+    } else {
+        titleClickTimer = setTimeout(() => {
+            titleClickCount = 0;
+        }, 2500);
+    }
+}
+
+function toggleDevConsole() {
+    const consoleEl = document.getElementById('dev-console');
+    if (!consoleEl) return;
+    const isHidden = consoleEl.classList.contains('hidden');
+    if (isHidden) {
+        consoleEl.classList.remove('hidden');
+        appLog('System', '디버그 콘솔 인스턴스가 성공적으로 가시화되었습니다.');
+    } else {
+        consoleEl.classList.add('hidden');
+    }
+}
+
+function clearDevConsole() {
+    const consoleBody = document.getElementById('dev-console-body');
+    if (consoleBody) {
+        consoleBody.innerHTML = '<div class="text-slate-500">// 디버그 터미널 로그 스트림이 초기화되었습니다.</div>';
+    }
+}
+
+function appLog(category, message) {
+    const consoleBody = document.getElementById('dev-console-body');
+    if (!consoleBody) return;
+
+    const time = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+    const logLine = document.createElement('div');
+    logLine.className = 'py-0.5 border-b border-slate-900/30 break-all text-[11px] leading-relaxed';
+    
+    let colorClass = 'text-emerald-400';
+    if (category === 'Error') colorClass = 'text-rose-400';
+    if (category === 'Success') colorClass = 'text-cyan-400';
+    if (category === 'System') colorClass = 'text-amber-400';
+    if (category === 'Speech') colorClass = 'text-indigo-400';
+
+    logLine.innerHTML = `<span class="text-slate-600">[${time}]</span> <span class="${colorClass} font-bold">[${category}]</span> ${message}`;
+    
+    consoleBody.appendChild(logLine);
+    
+    // 저사양 태블릿 힙 메모리 고갈 누수 완전 차단: 로그 50개 초과 시 최선행 노드 영구 폐기
+    if (consoleBody.children.length > 50) {
+        consoleBody.removeChild(consoleBody.firstChild);
+    }
+
+    consoleBody.scrollTop = consoleBody.scrollHeight;
 }
 
 const cleanupActiveUI = () => {
@@ -593,10 +682,14 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 
             const similarity = calculatePhoneticSimilarity(cleanSpoken, cleanTarget);
 
+            appLog('Speech', `음성 인식 완료 ➡️ 수집된 입력값: "${cleanSpoken}" / 목표값: "${cleanTarget}"`);
+            appLog('System', `자모 분해 비교 매칭 ➡️ 유저 자모: [${disassembleKorean(cleanSpoken)}] / 정답 자모: [${disassembleKorean(cleanTarget)}]`);
+
             const targetElement = document.querySelector(`[data-action="open-modal"][data-index="${processingTargetIndex}"]`);
             const card = targetElement ? targetElement.closest('.bg-white.border.border-slate-100') : null;
 
             if (similarity >= 0.6) {
+                appLog('Success', `발음 일치율 통과! 점수: ${(similarity * 100).toFixed(1)}% (임계치 60% 도과)`);
                 if (card) {
                     card.classList.add('flash-correct');
                     setTimeout(() => card.classList.remove('flash-correct'), 600);
@@ -605,6 +698,7 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
                 
                 if (navigator.vibrate) navigator.vibrate(40);
             } else {
+                appLog('Error', `발음 일치율 미달... 점수: ${(similarity * 100).toFixed(1)}% (임계치 60% 미만)`);
                 if (card) {
                     card.classList.add('flash-incorrect');
                     setTimeout(() => card.classList.remove('flash-incorrect'), 600);
@@ -622,13 +716,15 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     recognition.onend = function() { 
         isListening = false; 
         cleanupActiveUI();
+        appLog('System', '웹 오디오 API 오디오 세션 정상 마감 및 인스턴스 전면 휴지(Idle) 상태 전환');
         // 잔음 버퍼 연산 처리가 완료될 때까지 안전하게 인덱스를 보존 후 해제
         setTimeout(() => { processingTargetIndex = null; }, 500);
     };
-    recognition.onerror = function() { 
+    recognition.onerror = function(event) { 
         isListening = false; 
         cleanupActiveUI();
         processingTargetIndex = null;
+        appLog('Error', `음성 인식 모듈 하드웨어 에러 감지: ${event.error}`);
     };
 }
 
@@ -636,14 +732,21 @@ window.onload = function() {
     document.documentElement.style.setProperty('--hanja-size', `${defaultHanjaSizePx}px`);
     document.documentElement.style.setProperty('--hun-size', `${defaultHunSizePx}px`);
     
+    appLog('System', '4급 배정한자 플랫폼 학습 엔진 초기화 가동');
     preRenderStaticTables();
     activeFavoriteIndices = [...bookmarks];
     switchTab(1);
 
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        appLog('System', '저사양 모바일 마이크 하드웨어 사전 액세스 시도');
         navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(stream => { stream.getTracks().forEach(track => track.stop()); })
-        .catch(err => console.log("마이크 사전 권한 대기 혹은 거부됨"));
+        .then(stream => { 
+            appLog('System', '마이크 하드웨어 가용 권한 획득 성공');
+            stream.getTracks().forEach(track => track.stop()); 
+        })
+        .catch(err => {
+            appLog('Error', '마이크 권한 요청이 시스템에서 거부되었거나 사용 불가능 상태입니다.');
+        });
     }
 
     const mainContainer = document.getElementById('table-view-container');

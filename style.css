@@ -31,10 +31,10 @@ body.quiz-mode .quiz-blur-target:not(.solved) {
     text-shadow: 0 0 6px rgb(100 116 139) !important;
 }
 
-/* 글자 크기 동적 변수 기본값 제어 (한자 45px, 훈음 17px 기본 탑재) */
+/* 글자 크기 동적 변수 기본값 제어 */
 :root {
-    --hanja-size: 45px; /* 기본 45px */
-    --hun-size: 17px;     /* 기본 17px */
+    --hanja-size: 45px;
+    --hun-size: 17px;
 }
 .dynamic-hanja-size {
     font-size: var(--hanja-size) !important;
@@ -138,4 +138,22 @@ body.quiz-mode .quiz-blur-target:not(.solved) {
 }
 .flash-incorrect {
     animation: flash-orange 0.6s ease-in-out !important;
+}
+
+/* === 개발자용 디버그 콘솔 전용 레이아웃 가속 격리 및 맞춤형 스크롤바 === */
+#dev-console-body {
+    contain: content; /* 자바스크립트로 로그 적재 시 브라우저 Reflow 차단 */
+}
+#dev-console-body::-webkit-scrollbar {
+    width: 6px;
+}
+#dev-console-body::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.5);
+}
+#dev-console-body::-webkit-scrollbar-thumb {
+    background: #1e293b;
+    border-radius: 3px;
+}
+#dev-console-body::-webkit-scrollbar-thumb:hover {
+    background: #334155;
 }
