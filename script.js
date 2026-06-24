@@ -78,12 +78,17 @@ let defaultHunSizePx = parseInt(savedHunSize);
 let solvedHanjas = new Set();
 const tabCache = {};
 
-// 음성 제어 생명주기 관련 변수 (대책 A 시스템 적용)
+// 음성 제어 및 모바일 스크롤 스레스홀드 보정 변수
 let pressStartTime = 0;
 let evaluationTargetIndex = null;
 let isListening = false;
 let wasHoldAction = false;
 let recognition = null;
+
+let touchStartPos = { x: 0, y: 0 };
+let holdTimer = null;
+let isHolding = false;
+let hasMoved = false;
 
 function saveBookmarks() {
     localStorage.setItem('hanja_bookmarks', JSON.stringify(bookmarks));
@@ -207,9 +212,9 @@ function generateTableHTML(t, pageData, titleLabel) {
             <div class="bg-white border border-slate-100 rounded-xl p-3 flex flex-col items-center relative hover:bg-slate-50 transition-all shadow-sm">
                 <div data-action="toggle-bookmark" data-index="${globalIdx}" 
                      class="w-full flex justify-between items-center mb-1 cursor-pointer bg-transparent select-none">
-                    <span class="text-[10px] font-mono font-bold text-slate-400 leading-none flex items-center gap-1">
-                        <i class="fa-solid fa-microphone text-red-500 recording-icon hidden animate-pulse"></i>
-                        #${globalIdx + 1}
+                    <span class="text-[10px] font-mono font-bold text-slate-400 leading-none flex items-center justify-center h-4 min-w-[24px]">
+                        <i class="fa-solid fa-microphone text-red-500 text-base recording-icon hidden animate-pulse"></i>
+                        <span class="number-label">#${globalIdx + 1}</span>
                     </span>
                     <span class="star-wrapper-${globalIdx} flex items-center justify-center h-full ${isStarred ? 'text-amber-400' : 'text-slate-200 hover:text-slate-400'} text-base">
                         <i class="fa-solid fa-star"></i>
@@ -366,42 +371,80 @@ function handleHunClick(tdElement, globalIdx) {
     }
 }
 
-// === 음성 입력 시작 및 종료 핸들러 제어부 (대책 A 정합성 고도화) ===
 function handleVoiceStart(e) {
-    if (!isQuizMode) return; // 퀴즈 가리기 상태가 아니면 이벤트 가로채기 자체를 하지 않음
+    if (!isQuizMode) return; 
 
     const hanjaCell = e.target.closest('[data-action="open-modal"]');
     if (!hanjaCell) return;
     
-    if (e.type === 'touchstart') {
-        e.preventDefault(); 
-    }
+    const touch = e.touches ? e.touches[0] : e;
+    touchStartPos = { x: touch.clientX, y: touch.clientY };
+    hasMoved = false;
+    isHolding = false;
 
     pressStartTime = Date.now();
     evaluationTargetIndex = parseInt(hanjaCell.getAttribute('data-index'), 10);
     wasHoldAction = false;
 
-    const cardWrapper = hanjaCell.closest('.bg-white.border.border-slate-100');
-    if (cardWrapper) {
-        cardWrapper.classList.add('mic-pulse-active');
-        cardWrapper.classList.add('recording-active');
-    }
+    holdTimer = setTimeout(() => {
+        isHolding = true;
+        
+        const cardWrapper = hanjaCell.closest('.bg-white.border.border-slate-100');
+        if (cardWrapper) {
+            cardWrapper.classList.add('mic-pulse-active');
+            cardWrapper.classList.add('recording-active');
+        }
 
-    if (recognition && !isListening) {
-        isListening = true;
-        try {
-            recognition.start();
-        } catch (err) {
-            console.error(err);
+        if (recognition && !isListening) {
+            isListening = true;
+            try {
+                recognition.start();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+    }, 300);
+}
+
+function handleVoiceMove(e) {
+    if (!isQuizMode || evaluationTargetIndex === null) return;
+
+    const touch = e.touches ? e.touches[0] : e;
+    const dx = touch.clientX - touchStartPos.x;
+    const dy = touch.clientY - touchStartPos.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance > 10) {
+        hasMoved = true;
+        clearTimeout(holdTimer); 
+
+        if (isHolding) {
+            const targetElement = document.querySelector(`[data-action="open-modal"][data-index="${evaluationTargetIndex}"]`);
+            if (targetElement) {
+                const cardWrapper = targetElement.closest('.bg-white.border.border-slate-100');
+                if (cardWrapper) {
+                    cardWrapper.classList.remove('mic-pulse-active');
+                    cardWrapper.classList.remove('recording-active');
+                }
+            }
+
+            if (recognition && isListening) {
+                recognition.stop();
+                isListening = false;
+            }
+            isHolding = false;
+            wasHoldAction = true; 
+            evaluationTargetIndex = null;
         }
     }
 }
 
 function handleVoiceEnd(e) {
-    if (!isQuizMode) return; // 퀴즈 가리기 상태가 아니면 무시
+    if (!isQuizMode) return; 
+
+    clearTimeout(holdTimer);
 
     if (evaluationTargetIndex === null) return;
-    const duration = Date.now() - pressStartTime;
     
     const targetElement = document.querySelector(`[data-action="open-modal"][data-index="${evaluationTargetIndex}"]`);
     if (targetElement) {
@@ -417,15 +460,19 @@ function handleVoiceEnd(e) {
         isListening = false;
     }
 
-    if (duration >= 300) {
+    if (isHolding) {
         wasHoldAction = true; 
     } else {
-        if (e.type === 'touchend' || e.type === 'mouseup') {
-            openModal(evaluationTargetIndex);
-            wasHoldAction = true; // 데스크톱 click 이벤트를 방어하기 위해 플래그 수립
+        if (hasMoved) {
+            wasHoldAction = true; 
+        } else {
+            wasHoldAction = false; 
         }
     }
-    evaluationTargetIndex = null;
+
+    setTimeout(() => {
+        evaluationTargetIndex = null;
+    }, 100);
 }
 
 let currentVoiceHanja = '';
@@ -461,7 +508,6 @@ function openModal(index) {
     }, 10);
 }
 
-// 모달 닫기 정밀 교정 (classList 누락 오류 완벽 해결)
 function closeModal() {
     const modal = document.getElementById('detail-modal');
     if (!modal) return;
@@ -490,7 +536,6 @@ function speakHanja() {
     }
 }
 
-// === 3. 웹 오디오 스피치 평가 객체 수립 및 초기 바인딩 ===
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
@@ -561,6 +606,10 @@ window.onload = function() {
     
     mainContainer.addEventListener('mousedown', handleVoiceStart);
     mainContainer.addEventListener('touchstart', handleVoiceStart, { passive: false });
+    
+    mainContainer.addEventListener('mousemove', handleVoiceMove);
+    mainContainer.addEventListener('touchmove', handleVoiceMove, { passive: true }); 
+    
     mainContainer.addEventListener('mouseup', handleVoiceEnd);
     mainContainer.addEventListener('touchend', handleVoiceEnd);
     mainContainer.addEventListener('mouseleave', handleVoiceEnd);
