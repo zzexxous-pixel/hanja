@@ -746,7 +746,7 @@ window.onload = function() {
     document.documentElement.style.setProperty('--hanja-size', `${defaultHanjaSizePx}px`);
     document.documentElement.style.setProperty('--hun-size', `${defaultHunSizePx}px`);
     
-    appLog('System', '4급 배정한자 플랫폼 학습 엔진 초기화 가동');
+    appLog('System', '4급 배정한자 플랫폼 학습 엔진 초기화 가동 (공식 버전: {{APP_VERSION}})');
     preRenderStaticTables();
     activeFavoriteIndices = [...bookmarks];
     switchTab(1);

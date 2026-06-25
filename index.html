@@ -11,7 +11,7 @@
     <!-- 구글 웹폰트 'LXGW WenKai TC' 불러오기 -->
     <link href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC&display=swap" rel="stylesheet">
     <!-- 분리된 전용 CSS 파일 로드 -->
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v={{APP_VERSION}}">
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col select-none">
 
@@ -133,13 +133,16 @@
     <!-- Footer -->
     <footer class="bg-slate-900 text-slate-400 border-t border-slate-800 mt-auto py-8">
         <div class="max-w-7xl mx-auto px-4 text-center sm:px-6 lg:px-8">
-            <p class="text-xs">본 프로그램의 한자 훈음은 대한검정회 4급 배정 표준안을 준수하여 교정 및 수록되었습니다.</p>
-            <p class="text-xs mt-2 text-slate-600">&copy; 2026 4급 한자 학습 플랫폼. All Rights Reserved.</p>
+            <p class="text-xs">본 프로그램의 한자 훈음은 대한검정회 배정 표준안을 준수하여 교정 및 수록되었습니다.</p>
+            <p class="text-[11px] mt-2 text-slate-500">
+                한자 마스터 {{APP_VERSION}} | 업데이트: <span class="font-mono text-amber-400">{{COMMIT_DATE}}</span>
+            </p>
+            <p class="text-xs mt-2 text-slate-600">&copy; 2026 한자 학습 플랫폼. All Rights Reserved.</p>
         </div>
     </footer>
 
     <!-- 대규모 한자 데이터베이스 및 전용 학습기 스크립트 로드 -->
-    <script src="hanja_data.js"></script>
-    <script src="script.js"></script>
+    <script src="hanja_data.js?v={{APP_VERSION}}"></script>
+    <script src="script.js?v={{APP_VERSION}}"></script>
 </body>
 </html>

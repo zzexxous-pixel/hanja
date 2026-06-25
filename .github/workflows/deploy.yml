@@ -1,0 +1,69 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 레포지토리 코드 가져오기 (전체 히스토리 조회를 위해 fetch-depth: 0 설정 필수)
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      # [핵심 엔진] VERSION 파일 기반 커밋 추적 및 패치 버전 계산
+      - name: Calculate Version & Inject Data
+        run: |
+          # 1. VERSION 파일에서 메이저.마이너 읽기 (공백 제거)
+          BASE_VERSION=$(cat VERSION | tr -d '\r\n ')
+          
+          # 2. VERSION 파일이 마지막으로 수정된 커밋 해시 찾기
+          VERSION_COMMIT=$(git log -1 --format='%H' -- VERSION)
+          
+          # 3. 해당 커밋 이후부터 현재(HEAD)까지 쌓인 커밋 개수 계산 (패치 번호)
+          if [ -z "$VERSION_COMMIT" ]; then
+            PATCH_COUNT=0
+          else
+            PATCH_COUNT=$(git rev-list --count ${VERSION_COMMIT}..HEAD)
+          fi
+          
+          # 4. 최종 유의적 버전 조합 (예: v1.2.4)
+          FULL_VERSION="v${BASE_VERSION}.${PATCH_COUNT}"
+          
+          # 5. 한국 시간(KST) 커밋 일시 추출
+          COMMIT_DATE=$(TZ=Asia/Seoul git log -1 --format='%cd' --date=format:'%Y-%m-%d %H:%M:%S')
+          
+          echo "조합된 앱 버전: $FULL_VERSION"
+          echo "반영된 커밋 일시: $COMMIT_DATE"
+          
+          # 6. 파일 내 플레이스홀더 치환
+          sed -i "s/{{APP_VERSION}}/$FULL_VERSION/g" index.html
+          sed -i "s/{{APP_VERSION}}/$FULL_VERSION/g" script.js
+          sed -i "s/{{COMMIT_DATE}}/$COMMIT_DATE KST/g" index.html
+
+      - name: Upload Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
