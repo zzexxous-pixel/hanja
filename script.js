@@ -210,7 +210,9 @@ function generateTableHTML(t, pageData, titleLabel) {
                 <span class="w-2.5 h-2.5 rounded-full ${t === 7 ? 'bg-amber-500' : 'bg-blue-600'}"></span>
                 ${titleLabel}
             </h2>
-            <span class="text-xs text-slate-400 font-medium">반응형 그리드 배치</span>
+            <span class="quiz-guide-text text-xs text-slate-500 font-medium hidden items-center gap-1.5 select-none">
+                <i class="fa-solid fa-microphone text-red-500 animate-pulse"></i> 한자를 누르고 읽어보세요.
+            </span>
         </div>
         <div class="p-4 hanja-responsive-grid">
     `;

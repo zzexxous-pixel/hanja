@@ -278,3 +278,16 @@ body.quiz-mode .quiz-blur-target:not(.solved) {
 .btn-popup-top-icon.theme-star.starred:hover { color: #d97706; }
 .btn-popup-top-icon.theme-close { font-size: 1.25rem; color: #94a3b8; }
 .btn-popup-top-icon.theme-close:hover { color: #475569; }
+
+/* ==========================================================================
+   퀴즈 모드 가동 상태에 따른 안내 가이드 문구 제어 인터페이스
+   ========================================================================== */
+/* 평상시(기본값)에는 화면에서 완전히 보이지 않도록 드롭 격리 처리 */
+.quiz-guide-text {
+    display: none !important;
+}
+
+/* [훈음 가리기] 버튼이 눌려 body에 quiz-mode가 활성화되면 정렬 상태를 유지하며 즉각 노출 */
+body.quiz-mode .quiz-guide-text {
+    display: inline-flex !important;
+}
