@@ -231,8 +231,10 @@ function generateTableHTML(t, pageData, titleLabel) {
                         <i class="fa-solid fa-star"></i>
                     </span>
                 </div>
-                <div data-action="open-modal" data-index="${globalIdx}" class="hanja-font dynamic-hanja-size font-bold text-slate-900 my-2 cursor-pointer select-none">
-                    ${item.h}
+                <div data-action="open-modal" data-index="${globalIdx}" class="w-full flex justify-center items-center my-2 cursor-pointer select-none">
+                    <span class="hanja-font dynamic-hanja-size font-bold text-slate-900 leading-none">
+                        ${item.h}
+                    </span>
                 </div>
                 <div data-action="click-hun" data-index="${globalIdx}" class="w-full text-center border-t border-slate-50 pt-2 cursor-pointer">
                     <span id="hun-text-${globalIdx}" class="quiz-blur-target ${solvedClass} dynamic-hun-size font-bold text-slate-600" data-type="hun">
