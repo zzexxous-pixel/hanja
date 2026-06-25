@@ -133,28 +133,30 @@ function toggleBookmark(index, event) {
     appLog('System', `즐겨찾기 토글 ➡️ #${index + 1} (${hanjaData[index].h}) : ${isRemoving ? '제거됨' : '등록됨'}`);
 }
 
+// [그룹 4] 개별 한자 셀 내부의 즐겨찾기 별표 상태 제어 컴포넌트 클래스 스왑 처리
 function updateCellStarUI(index, isStarred) {
     const liveWrappers = document.querySelectorAll(`.star-wrapper-${index}`);
     liveWrappers.forEach(starWrapper => {
-        starWrapper.className = `star-wrapper-${index} flex items-center justify-center h-full ${isStarred ? 'text-amber-400' : 'text-slate-200 hover:text-slate-400'} text-base`;
+        starWrapper.className = `star-wrapper-${index} btn-mini-icon type-star ${isStarred ? 'starred' : 'unstarred'}`;
     });
 
     const targetTab = Math.floor(index / 100) + 1;
     if (tabCache[targetTab]) {
         const cachedWrapper = tabCache[targetTab].querySelector(`.star-wrapper-${index}`);
         if (cachedWrapper) {
-            cachedWrapper.className = `star-wrapper-${index} flex items-center justify-center h-full ${isStarred ? 'text-amber-400' : 'text-slate-200 hover:text-slate-400'} text-base`;
+            cachedWrapper.className = `star-wrapper-${index} btn-mini-icon type-star ${isStarred ? 'starred' : 'unstarred'}`;
         }
     }
 }
 
+// [그룹 5] 모달 팝업 내부의 상단 즐겨찾기 아이콘 상태 제어 컴포넌트 클래스 스왑 처리
 function updateModalStarState(index) {
     const starBtn = document.getElementById('modal-star-btn');
     if (!starBtn) return;
     if (bookmarks.includes(index)) {
-        starBtn.className = "text-amber-500 hover:text-amber-600 text-2xl transition p-1";
+        starBtn.className = "btn-popup-top-icon theme-star starred";
     } else {
-        starBtn.className = "text-slate-300 hover:text-slate-500 text-2xl transition p-1";
+        starBtn.className = "btn-popup-top-icon theme-star unstarred";
     }
 }
 
@@ -227,7 +229,7 @@ function generateTableHTML(t, pageData, titleLabel) {
                         <i class="fa-solid fa-microphone text-red-500 text-base recording-icon hidden animate-pulse"></i>
                         <span class="number-label">#${globalIdx + 1}</span>
                     </span>
-                    <span class="star-wrapper-${globalIdx} flex items-center justify-center h-full ${isStarred ? 'text-amber-400' : 'text-slate-200 hover:text-slate-400'} text-base">
+                    <span class="star-wrapper-${globalIdx} btn-mini-icon type-star ${isStarred ? 'starred' : 'unstarred'}">
                         <i class="fa-solid fa-star"></i>
                     </span>
                 </div>
@@ -272,6 +274,7 @@ function toggleFavorites() {
     }
 }
 
+// [그룹 1] 헤더 제어 컴포넌트 상태 스위칭 연동 로직
 function switchTab(tabNum) {
     activeTab = tabNum;
     const container = document.getElementById('table-view-container');
@@ -291,54 +294,41 @@ function switchTab(tabNum) {
     const btnNext = document.getElementById('btn-next-page');
 
     if (tabNum === 7) {
-        if (tabBtn7) {
-            tabBtn7.className = "w-10 h-10 text-xs font-bold rounded-lg transition-all text-slate-950 bg-yellow-400 hover:bg-yellow-300 border border-yellow-400 shadow-[0_0_12px_rgba(234,179,8,0.3)] flex items-center justify-center shrink-0";
-        }
+        // 즐겨찾기 화면 진입 시 버튼 반전 및 페이지네이션 제어 불능 상태(disabled) 처리
+        if (tabBtn7) tabBtn7.className = "btn-header-ctrl active";
         if (pagerWrapper) {
             pagerWrapper.className = "flex items-center gap-1 bg-slate-700/40 p-1 rounded-lg h-10 text-slate-400 shadow-none shrink-0 select-none pointer-events-none opacity-50";
         }
-        if (btnPrev) {
-            btnPrev.className = "w-8 h-8 rounded bg-transparent text-slate-500 flex items-center justify-center transition";
-        }
-        if (btnNext) {
-            btnNext.className = "w-8 h-8 rounded bg-transparent text-slate-500 flex items-center justify-center transition";
-        }
-        if (pageIndicator) {
-            pageIndicator.innerText = "★ / 6";
-        }
+        if (btnPrev) btnPrev.className = "btn-header-ctrl disabled";
+        if (btnNext) btnNext.className = "btn-header-ctrl disabled";
+        if (pageIndicator) pageIndicator.innerText = "★ / 6";
     } else {
-        if (tabBtn7) {
-            tabBtn7.className = "w-10 h-10 text-xs font-bold rounded-lg transition-all text-yellow-300 hover:text-yellow-100 bg-yellow-500/15 hover:bg-yellow-500/25 border border-yellow-500/45 flex items-center justify-center shrink-0";
-        }
+        // 일반 페이지 구동 상태 복구 복원
+        if (tabBtn7) tabBtn7.className = "btn-header-ctrl";
         if (pagerWrapper) {
             pagerWrapper.className = "flex items-center gap-1 bg-blue-950/40 p-1 rounded-lg h-10 text-white shadow-sm transition-all duration-200 shrink-0 select-none";
         }
-        if (btnPrev) {
-            btnPrev.className = "w-8 h-8 rounded bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center text-amber-300 hover:text-amber-200 transition shadow-sm";
-        }
-        if (btnNext) {
-            btnNext.className = "w-8 h-8 rounded bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center text-amber-300 hover:text-amber-200 transition shadow-sm";
-        }
-        if (pageIndicator) {
-            pageIndicator.innerText = `${tabNum} / 6`;
-        }
+        if (btnPrev) btnPrev.className = "btn-header-ctrl";
+        if (btnNext) btnNext.className = "btn-header-ctrl";
+        if (pageIndicator) pageIndicator.innerText = `${tabNum} / 6`;
     }
 
     appLog('System', `화면 탭 전환 ➡️ 대상 탭: ${tabNum === 7 ? '★ 즐겨찾기' : tabNum + '페이지'}`);
 }
 
+// [그룹 2] 자가 테스트 모드 토글 컴포넌트 스위칭 로직 연동
 function toggleQuizMode() {
     isQuizMode = !isQuizMode;
     const btn = document.getElementById('btn-toggle-quiz');
     
     if (isQuizMode) {
         document.body.classList.add('quiz-mode');
-        btn.className = "header-quiz bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold w-28 rounded-lg shadow transition-all flex items-center justify-center gap-1.5 shrink-0 h-10";
+        btn.className = "btn-quiz-toggle theme-emerald"; // 에메랄드 테마 스왑
         btn.querySelector('span').innerText = "훈음 보이기";
         btn.querySelector('i').className = "fa-solid fa-eye w-4 text-center";
     } else {
         document.body.classList.remove('quiz-mode');
-        btn.className = "header-quiz bg-yellow-500 hover:bg-yellow-400 text-slate-900 text-xs font-bold w-28 rounded-lg shadow transition-all flex items-center justify-center gap-1.5 shrink-0 h-10";
+        btn.className = "btn-quiz-toggle theme-yellow";  // 옐로우 테마 스왑
         btn.querySelector('span').innerText = "훈음 가리기";
         btn.querySelector('i').className = "fa-solid fa-eye-slash w-4 text-center";
     }

@@ -157,3 +157,124 @@ body.quiz-mode .quiz-blur-target:not(.solved) {
 #dev-console-body::-webkit-scrollbar-thumb:hover {
     background: #334155;
 }
+
+/* ==========================================================================
+   표준 공통 UI 컴포넌트 시스템
+   ========================================================================== */
+
+/* [그룹 1] 헤더 소형 제어 컴포넌트 (32px 박스 및 노란색 계열 통일) */
+.btn-header-ctrl {
+    width: 2rem; /* w-8 = 32px */
+    height: 2rem; /* h-8 = 32px */
+    border-radius: 0.375rem; /* rounded */
+    background-color: rgba(255, 255, 255, 0.1); /* bg-white/10 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #facc15; /* text-yellow-400 (노란색 통일) */
+    font-weight: 700;
+    font-size: 0.75rem; /* text-xs */
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+.btn-header-ctrl:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+    color: #fef08a; /* text-yellow-200 */
+}
+.btn-header-ctrl:active {
+    transform: scale(0.95);
+}
+/* 토글 활성화 시 색상 반전 처리 스펙 */
+.btn-header-ctrl.active {
+    background-color: #facc15; /* 배경이 노란색으로 변경 */
+    color: #1e3a8a; /* 글자/아이콘이 헤더 딥블루톤으로 반전 */
+}
+.btn-header-ctrl.active:hover {
+    background-color: #fde68a;
+}
+/* 페이저 비활성화(즐겨찾기 화면 진입 시) 처리 스펙 */
+.btn-header-ctrl.disabled {
+    background-color: transparent;
+    color: #64748b; /* text-slate-500 */
+    pointer-events: none;
+    opacity: 0.5;
+}
+
+/* [그룹 2] 자가 테스트 모드 토글 컴포넌트 */
+.btn-quiz-toggle {
+    width: 7rem; /* w-28 */
+    height: 2.5rem; /* h-10 */
+    font-size: 0.75rem;
+    font-weight: 700;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    flex-shrink: 0;
+}
+.btn-quiz-toggle.theme-yellow { background-color: #eab308; color: #0f172a; }
+.btn-quiz-toggle.theme-yellow:hover { background-color: #facc15; }
+.btn-quiz-toggle.theme-emerald { background-color: #059669; color: #ffffff; }
+.btn-quiz-toggle.theme-emerald:hover { background-color: #10b981; }
+
+/* [그룹 3] 상세 모달 와이드 알약형 액션 컴포넌트 */
+.btn-popup-action {
+    width: 100%;
+    padding-top: 0.625rem; padding-bottom: 0.625rem;
+    border-radius: 0.75rem;
+    font-weight: 500;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.2s;
+}
+.btn-popup-action.theme-slate { background-color: #f1f5f9; color: #334155; }
+.btn-popup-action.theme-slate:hover { background-color: #e2e8f0; }
+.btn-popup-action.theme-blue { background-color: #eff6ff; color: #2563eb; }
+.btn-popup-action.theme-blue:hover { background-color: #dbeafe; }
+
+/* [그룹 4] 순수 미니 아이콘 컴포넌트 (그리드 별표 기준 투명 배경 일치화) */
+.btn-mini-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: color 0.2s, transform 0.1s;
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+.btn-mini-icon:active { transform: scale(0.9); }
+/* 한자 그리드 별표 색상 스펙 */
+.btn-mini-icon.type-star { font-size: 1rem; }
+.btn-mini-icon.type-star.starred { color: #fbbf24; }
+.btn-mini-icon.type-star.unstarred { color: #e2e8f0; }
+.btn-mini-icon.type-star.unstarred:hover { color: #94a3b8; }
+/* 디버그 콘솔 액션 버튼의 아이콘 단독화 컬러 스펙 */
+.btn-mini-icon.type-log-clear { color: #94a3b8; font-size: 0.875rem; padding: 0.25rem; }
+.btn-mini-icon.type-log-clear:hover { color: #cbd5e1; }
+.btn-mini-icon.type-log-close { color: #fca5a5; font-size: 0.875rem; padding: 0.25rem; }
+.btn-mini-icon.type-log-close:hover { color: #f87171; }
+
+/* [그룹 5] 팝업 내부 상단 소형 아이콘 컴포넌트 */
+.btn-popup-top-icon {
+    padding: 0.25rem;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+}
+.btn-popup-top-icon.theme-star { font-size: 1.5rem; }
+.btn-popup-top-icon.theme-star.unstarred { color: #cbd5e1; }
+.btn-popup-top-icon.theme-star.unstarred:hover { color: #64748b; }
+.btn-popup-top-icon.theme-star.starred { color: #f59e0b; }
+.btn-popup-top-icon.theme-star.starred:hover { color: #d97706; }
+.btn-popup-top-icon.theme-close { font-size: 1.25rem; color: #94a3b8; }
+.btn-popup-top-icon.theme-close:hover { color: #475569; }
