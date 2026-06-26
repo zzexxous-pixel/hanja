@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>음성 인식 및 발음 유사도 분석 샘플 (연속 가속 버전)</title>
+    <title>음성 인식 및 발음 유사도 분석 샘플 (완벽 동기화 버전)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -18,7 +18,7 @@
             70% { box-shadow: 0 0 0 15px rgba(244, 63, 94, 0); }
             100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
         }
-        /* [요청 1] 구형 기기 웹뷰 및 모든 브라우저에서 로그 텍스트를 확실하게 드래그 복사할 수 있도록 강제 규칙 지정 */
+        /* 로그 텍스트를 확실하게 마우스 드래그 복사할 수 있도록 유저 셀렉트 지정 */
         .selectable-log {
             user-select: text !important;
             -webkit-user-select: text !important;
@@ -32,7 +32,7 @@
 <div class="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-6 border border-gray-200">
     <div class="text-center mb-6">
         <h1 class="text-2xl font-bold text-gray-800">🎙️ 발음 유사도 판정 테스트기</h1>
-        <p class="text-xs text-gray-500 mt-1">0ms 웜업 풀 및 실시간 스트림 매칭 엔진이 적용된 고도화 버전입니다.</p>
+        <p class="text-xs text-gray-500 mt-1">오답 딜레이 현상을 원천 타파하고 언제나 인식 텍스트를 투명하게 노출하는 완성형 버전입니다.</p>
     </div>
 
     <div class="mb-5">
@@ -54,11 +54,13 @@
     <div class="space-y-4">
         <div class="bg-gray-50 rounded-xl p-4 border border-gray-100 text-center">
             <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">실시간 판정 결과</h3>
-            <p id="match-status" class="text-lg font-bold text-gray-600 mt-1">대기 중...</p>
+            <div id="match-status" class="text-lg font-bold text-gray-600 mt-1 min-h-[60px] flex flex-col items-center justify-center">
+                <span>대기 중...</span>
+            </div>
             <div class="mt-2 text-sm text-gray-500">
                 발음 일치율: <span id="similarity-percentage" class="font-extrabold text-indigo-600">--%</span>
             </div>
-            <p class="text-[11px] text-gray-400 mt-1">💡 한자 앱 규칙: 손을 대고 말하는 도중 60%를 넘으면 즉시 합격!</p>
+            <p class="text-[11px] text-gray-400 mt-1">💡 언제나 내가 내뱉은 음성이 하단 상태창에 실시간 반영됩니다.</p>
         </div>
 
         <div class="bg-slate-900 rounded-xl p-3 text-left font-mono flex flex-col">
@@ -134,20 +136,21 @@
     let micShutdownTimer = null;           
     let currentSpeechStartIndex = -1;      
     let recognition = null;
-    let latestCleanSpoken = ""; // ➡️ [추가] 손을 떼는 순간 오답 판정을 즉시 내리기 위해 현재 세션의 최신 텍스트를 보존하는 변수
 
-    // [요청 2] 세션간 단어 얽힘 및 복사 결합 현상을 원천 방지하기 위한 델타 버퍼 추적기 변수
-    let speechBaselineText = "";           // 이번 터치 다운 직전까지 브라우저 세션에 누적되어 있던 기존 텍스트 스냅샷
-    let lastTranscriptPerIndex = {};       // Web Speech API의 내부 인덱스별 최종 문자열 상태 보존 객체
+    // 세션간 단어 얽힘 방지 격리 변수셋
+    let speechBaselineText = "";           
+    let lastTranscriptPerIndex = {};       
+    
+    // [추가] 손가락 상태(누름/뗌)와 상관없이 언제든 최신 인식 텍스트를 강제 매핑하기 위한 전역 스냅샷 변수
+    let latestRawTranscript = "";          
 
-    // 타임스탬프형 누적형 로그 엔진 ( selectable-log 자식 클래스 자동 부여 포함 )
+    // 타임스탬프 누적형 로그 엔진
     function logToStream(category, message) {
         const consoleBody = document.getElementById("stream-log");
         if (!consoleBody) return;
 
         const time = new Date().toLocaleTimeString('ko-KR', { hour12: false });
         const logLine = document.createElement('div');
-        // 로그 라인 내부 요소도 드래그 복사가 풀리지 않도록 selectable-log 명시 바인딩
         logLine.className = 'py-0.5 border-b border-slate-800/40 break-all text-[11px] leading-relaxed selectable-log';
         
         let colorClass = 'text-emerald-400';
@@ -166,7 +169,7 @@
         consoleBody.scrollTop = consoleBody.scrollHeight;
     }
 
-    // 5초간 추가 입력이 없으면 백그라운드 마이크 세션을 안전하게 정리하는 회수기 함수
+    // 5초 자동 자원 회수 대기 풀
     function startMicShutdownTimer() {
         if (micShutdownTimer) clearTimeout(micShutdownTimer);
         micShutdownTimer = setTimeout(() => {
@@ -183,7 +186,7 @@
         }, 5000);
     }
 
-    // 인터페이스 뷰 스타일 전환 함수
+    // UI 스타일 토글러
     function setRecordingUI(active) {
         const btn = document.getElementById("mic-btn");
         const btnText = document.getElementById("btn-text");
@@ -204,7 +207,7 @@
         }
     }
 
-    // === Web Speech API 연속 가속 매칭 엔진 구성 ===
+    // === Web Speech API 가속 매칭 엔진 구성 ===
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognition = new SpeechRecognition();
@@ -221,7 +224,7 @@
             isListening = true;
             if (isPressing) {
                 setRecordingUI(true);
-                document.getElementById("match-status").innerHTML = "<span class='text-blue-500 font-bold'>👂 실시간 음성 스트림 분석 중...</span>";
+                document.getElementById("match-status").innerHTML = "<span class='text-blue-500 font-bold'>👂 귀를 기울이고 있습니다... 바로 말씀하세요!</span>";
                 logToStream('System', "🎙️ 구글 클라우드 오디오 게이트웨이 개방 완료.");
             }
         };
@@ -249,37 +252,55 @@
                 currentTranscript += event.results[i][0].transcript;
             }
 
+            // 실시간 트림 가공 처리
+            currentTranscript = currentTranscript.trim();
             let isFinalResult = event.results[event.results.length - 1].isFinal;
 
             if (currentTranscript) {
+                // [수정 핵심 1] 늦게 유입되는 음성 스트림도 언제든 손떼기 핸들러가 가로챌 수 있게 실시간 전역 백업
+                latestRawTranscript = currentTranscript; 
+
                 const targetWord = document.getElementById("target-word").value.trim();
                 const cleanSpoken = currentTranscript.replace(/[\.\?\!\,\s]+/g, '');
-                
-                // ➡️ [추가] 손가락을 뗄 때 즉시 오답 처리를 하기 위해 최신 파싱 데이터를 전역 공간에 박제
-                latestCleanSpoken = cleanSpoken; 
-
                 const cleanTarget = targetWord.replace(/\s+/g, '');
+
                 const similarity = calculatePhoneticSimilarity(cleanSpoken, cleanTarget);
                 const percentScore = Math.round(similarity * 100);
 
                 document.getElementById("similarity-percentage").textContent = `${percentScore}%`;
 
+                // [케이스 A] 일치율 60% 통과 시 0ms 즉시 합격 처리 기동
                 if (similarity >= 0.6) {
                     hasPassed = true;
                     document.getElementById("match-status").innerHTML = `
                         <span class="text-emerald-500 font-black">🎉 즉시 통과! (딩동댕)</span>
-                        <div class="text-xs text-gray-500 mt-1">인식: "${currentTranscript.trim()}" ≒ 목표: "${targetWord}"</div>
+                        <div class="text-xs text-gray-500 mt-1">인식: "${currentTranscript}" ≒ 목표: "${targetWord}"</div>
                     `;
                     logToStream('Success', `🎯 매칭 성공! 최종 일치율: ${percentScore}%`);
+                    logToStream('Speech', `실시간 격리 합격 버퍼 ➡️ "${cleanSpoken}"`);
                     startMicShutdownTimer();
                 } 
-                else if (isFinalResult) {
-                    // 이제 구글 서버의 자연 종료는 백그라운드 로그용으로만 활용하고 UI 지연에는 영향을 주지 않게 됩니다.
-                    logToStream('System', `구글 서버의 문장 최종 확정 수신 완료 (일치율: ${percentScore}%)`);
-                } 
+                // [케이스 B] 불합격 상태일 때의 실시간 동적 상태창 출력 바인딩 기동
                 else {
                     if (isPressing) {
+                        // 사용자가 여전히 누르고 소리 내는 중일 때 상태 실시간 피드백
+                        document.getElementById("match-status").innerHTML = `
+                            <span class="text-blue-500 font-bold">👂 실시간 분석 중...</span>
+                            <div class="text-xs text-gray-500 mt-1">현재 입력: "${currentTranscript}"</div>
+                        `;
                         logToStream('Speech', `인식 중: "${cleanSpoken}" (실시간 매칭 점수: ${percentScore}%)`);
+                    } else {
+                        // [수정 핵심 2] 손을 이미 뗐음에도 뒤늦게 밀려오는 구글 스트림 잔여 버퍼도 오답창에 실시간으로 계속 밀어 넣어 노출 보장!
+                        document.getElementById("match-status").innerHTML = `
+                            <span class="text-red-500 font-bold">😢 아쉬워요! 다시 해보세요.</span>
+                            <div class="text-xs text-gray-500 mt-1">최종 인식 단어: "${currentTranscript}"</div>
+                        `;
+                        if (isFinalResult) {
+                            logToStream('Error', `❌ 판정 낙방 일치율: ${percentScore}% (기준치 미달)`);
+                            logToStream('Speech', `최종 불합격 완결 버퍼 ➡️ "${cleanSpoken}"`);
+                        } else {
+                            logToStream('Speech', `손떼기 이후 후속 데이터 스트림 결합 수집: "${cleanSpoken}" (점수: ${percentScore}%)`);
+                        }
                     }
                 }
             }
@@ -321,9 +342,10 @@
         isPressing = true;
         hasPassed = false;
         
-        // [요청 2] 신규 터치 다운 시마다 이전 세션의 추적 앵커 인덱스 및 베이스라인 리셋
+        // 데이터 격리 초기화 리셋
         currentSpeechStartIndex = -1; 
         speechBaselineText = "";
+        latestRawTranscript = ""; // 신규 트랙을 위해 텍스트 청소
 
         if (micShutdownTimer) {
             clearTimeout(micShutdownTimer);
@@ -352,23 +374,26 @@
 
         setRecordingUI(false);
 
-        // ➡️ [핵심 추가] 손을 뗐는데 아직 정답 처리가 안 되었다면? 
-        // 구글의 침묵 타임아웃 대기를 무력화하고 현재까지의 텍스트로 즉시 오답 확정 판정!
-        if (!hasPassed && latestCleanSpoken) {
-            const targetWord = document.getElementById("target-word").value.trim();
-            const cleanTarget = targetWord.replace(/\s+/g, '');
-            const similarity = calculatePhoneticSimilarity(latestCleanSpoken, cleanTarget);
-            const percentScore = Math.round(similarity * 100);
+        // [수정 핵심 3] 손을 완전히 떼는 시점의 동기화 결산 연산 제어
+        if (!hasPassed) {
+            if (latestRawTranscript) {
+                // 이미 조금이라도 읽힌 텍스트가 있다면 딜레이 없이 그 즉시 오답 결과 매운맛 매핑 처리 실행!
+                const targetWord = document.getElementById("target-word").value.trim();
+                const cleanSpoken = latestRawTranscript.replace(/[\.\?\!\,\s]+/g, '');
+                const cleanTarget = targetWord.replace(/\s+/g, '');
+                const similarity = calculatePhoneticSimilarity(cleanSpoken, cleanTarget);
+                const percentScore = Math.round(similarity * 100);
 
-            // 손을 떼는 순간 기준치 미달이면 즉시 피드백 인터페이스 출력!
-            document.getElementById("match-status").innerHTML = `
-                <span class="text-red-500 font-bold">😢 아쉬워요! 다시 해보세요.</span>
-                <div class="text-xs text-gray-500 mt-1">최종 입력 발음: "${latestCleanSpoken}"</div>
-            `;
-            logToStream('Error', `❌ [손떼기 강제 판정] 최종 일치율 미달 낙방: ${percentScore}%`);
-            
-            // 판정이 완료되었으므로 다음 입력을 위해 텍스트 스냅샷 초기화
-            latestCleanSpoken = ""; 
+                document.getElementById("match-status").innerHTML = `
+                    <span class="text-red-500 font-bold">😢 아쉬워요! 다시 해보세요.</span>
+                    <div class="text-xs text-gray-500 mt-1">최종 인식 단어: "${latestRawTranscript}"</div>
+                `;
+                logToStream('Error', `❌ [버튼 손뗌] 즉시 불합격 확정 출력 스냅샷: ${percentScore}%`);
+            } else {
+                // 손은 뗐는데 구형 기기 스레드 지연 때문에 서버에서 아직 단 한 글자도 데이터가 안 왔을 때의 샌드박스 안전 문구 노출
+                document.getElementById("match-status").innerHTML = "<span class='text-amber-500 font-bold'>⌛ 음성 분석 완료 대기 중... 잠시만 기다려주세요.</span>";
+                logToStream('System', "📥 버튼 홀드는 해제되었으나 클라우드 음성 텍스트 변환 패킷 도착 대기 중...");
+            }
         }
 
         if (isListening) {
