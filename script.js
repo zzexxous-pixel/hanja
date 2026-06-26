@@ -68,6 +68,7 @@ let activeTab = 1;
 let preFavoriteTab = 1; 
 let isQuizMode = false;
 let micShutdownTimer = null; // 5초 Keep-Alive 대기 버퍼 제어용 전역 타이머 변수
+let currentHanjaSpeechStartIndex = -1; // 현재 터치한 한자의 음성 시작 버퍼 인덱스 추적 변수
 
 // 로컬스토리지 기반 북마크 배열
 let bookmarks = JSON.parse(localStorage.getItem('hanja_bookmarks')) || [];
@@ -417,6 +418,7 @@ function handleVoiceStart(e) {
     pressStartTime = Date.now();
     evaluationTargetIndex = parseInt(hanjaCell.getAttribute('data-index'), 10);
     processingTargetIndex = evaluationTargetIndex; 
+    currentHanjaSpeechStartIndex = -1; // 신규 한자 입력 진입 시 인덱스 리셋
     wasHoldAction = false;
 
     appLog('System', `한자 터치 감지 ➡️ #${evaluationTargetIndex + 1} (${hanjaData[evaluationTargetIndex].h})`);
@@ -668,14 +670,13 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
     recognition.lang = 'ko-KR';
-    recognition.interimResults = true; // 실시간 중간 스트림 자모 분석 1순위 가동 활성화
+    recognition.continuous = true;     // ➡️ [필수 변경] 문장이 끝나도 마이크를 자동 종료하지 않고 세션 유지
+    recognition.interimResults = true;  // 실시간 중간 스트림 결과 반영 활성화
     recognition.maxAlternatives = 1;
 
-    // 실제 구글 클라우드 및 하드웨어 게이트가 열려 소리를 듣기 시작하는 찰나에 실행되는 리스너
     recognition.onstart = function() {
         isListening = true;
         if (evaluationTargetIndex !== null) {
-            // 연결 완료 시점에 유저가 인지할 수 있도록 타겟 카드의 빨간 불빛 동기화 점등
             const targetElement = document.querySelector(`[data-action="open-modal"][data-index="${evaluationTargetIndex}"]`);
             const cardWrapper = targetElement ? targetElement.closest('.bg-white.border.border-slate-100') : null;
             if (cardWrapper) {
@@ -687,16 +688,21 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 
     recognition.onresult = function(event) {
         if (processingTargetIndex === null) return;
-        if (solvedHanjas.has(processingTargetIndex)) return; // 이미 합격한 카드면 중복 연산 차단
-        
-        let currentTranscript = '';
-        let isFinalResult = false;
+        if (solvedHanjas.has(processingTargetIndex)) return; // 중복 합격 처리 방지
 
-        // 구글 서버로부터 전달되는 실시간 자모 스트림 결합 계산
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-            currentTranscript += event.results[i][0].transcript;
-            if (event.results[i].isFinal) isFinalResult = true; // 최종 확정 프레임 여부 플래그
+        // 현재 한자를 누르고 첫 음성 프레임이 유입된 시점의 API 상대 인덱스를 박제합니다.
+        if (currentHanjaSpeechStartIndex === -1) {
+            currentHanjaSpeechStartIndex = event.resultIndex;
         }
+
+        let currentTranscript = '';
+        // 박제된 시작 인덱스 이후부터 현재까지 생성된 스트림 조각들만 안전하게 결합합니다 (과거 한자 발음 누적분 배제)
+        for (let i = currentHanjaSpeechStartIndex; i < event.results.length; ++i) {
+            currentTranscript += event.results[i][0].transcript;
+        }
+
+        // 전체 오디오 스트림 파이프라인의 가장 마지막 버퍼가 구글 클라우드에 의해 완결되었는지 검사
+        let isFinalResult = event.results[event.results.length - 1].isFinal;
 
         if (currentTranscript) {
             const cleanSpoken = currentTranscript.replace(/[\.\?\!\,\s]+/g, '');
@@ -706,9 +712,9 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             const targetElement = document.querySelector(`[data-action="open-modal"][data-index="${processingTargetIndex}"]`);
             const card = targetElement ? targetElement.closest('.bg-white.border.border-slate-100') : null;
 
-            // [조건 A] 소리를 내는 도중 손을 떼기 전이라도 일치율이 60%를 넘어서면 즉시 선제적 [합격] 처리
+            // [시나리오 1] 손가락을 대고 말하는 도중 일치율이 60%를 돌파하면 0ms 즉시 [합격] 바이패스 가동
             if (similarity >= 0.6) {
-                appLog('Success', `🎉 [합격] 일치율: ${(similarity * 100).toFixed(1)}% (인식: "${cleanSpoken}")`);
+                appLog('Success', `🎉 [즉시 합격] 일치율: ${(similarity * 100).toFixed(1)}% (인식: "${cleanSpoken}")`);
                 
                 if (card) {
                     card.classList.remove('mic-pulse-active', 'recording-active');
@@ -718,10 +724,10 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
                 toggleSolvedState(processingTargetIndex, true);
                 if (navigator.vibrate) navigator.vibrate(40);
                 
-                // 합격 후 마이크를 바로 끄지 않고, 연달아 다음 한자를 터치할 수 있게 5초 세션 유지 타이머로 인계!
+                // 마이크 채널은 그대로 켜둔 채 다음 연속 입력을 위해 5초 웜업 타이머로 토스
                 startMicShutdownTimer();
             } 
-            // [조건 B] 문장이 끝나 최종 확정 프레임이 수신되었음에도 60% 합격선을 넘지 못한 경우 [불합격] 처리
+            // [시나리오 2] 구글 엔진이 현재 발음을 문장 단위로 완전 확정했음에도 합격 점수를 못 채운 경우 [최종 불합격]
             else if (isFinalResult) {
                 appLog('Error', `❌ [불합격] 일치율: ${(similarity * 100).toFixed(1)}% (인식: "${cleanSpoken}")`);
                 
@@ -730,14 +736,14 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
                     setTimeout(() => card.classList.remove('flash-incorrect'), 600);
                 }
                 if (!bookmarks.includes(processingTargetIndex)) {
-                    toggleBookmark(processingTargetIndex); // 틀린 한자는 오답 보완을 위해 자동으로 즐겨찾기 바인딩
+                    toggleBookmark(processingTargetIndex);
                 }
                 if (navigator.vibrate) navigator.vibrate([40, 80, 40]);
                 
-                // 불합격 판정 후에도 재도전이나 다음 카드 풀이를 위해 마이크 5초 유지 유지
+                // 패배 레이블 부여 후에도 연속 도전을 위해 채널 개방 유지
                 startMicShutdownTimer();
             } 
-            // [조건 C] 문장 진행 중 실시간 입력 버퍼의 누적 파싱 상태 스트림 로그 덤프
+            // [시나리오 3] 실시간 파싱 도중 중간 스펙트럼 덤프 출력
             else {
                 appLog('Speech', `🎙️ 실시간 분석 중: "${cleanSpoken}" (현재 일치율: ${(similarity * 100).toFixed(0)}%)`);
             }
