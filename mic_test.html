@@ -134,6 +134,7 @@
     let micShutdownTimer = null;           
     let currentSpeechStartIndex = -1;      
     let recognition = null;
+    let latestCleanSpoken = ""; // ➡️ [추가] 손을 떼는 순간 오답 판정을 즉시 내리기 위해 현재 세션의 최신 텍스트를 보존하는 변수
 
     // [요청 2] 세션간 단어 얽힘 및 복사 결합 현상을 원천 방지하기 위한 델타 버퍼 추적기 변수
     let speechBaselineText = "";           // 이번 터치 다운 직전까지 브라우저 세션에 누적되어 있던 기존 텍스트 스냅샷
@@ -229,27 +230,20 @@
             if (!isListening) return;
             if (hasPassed) return; 
 
-            // [요청 2] 현재 누른 터치 다운 세션의 첫 오디오 스트림 프레임 윈도우 인덱스 락인
             if (currentSpeechStartIndex === -1) {
                 currentSpeechStartIndex = event.resultIndex;
-                // 만약 브라우저 엔진이 동일 인덱스에 발음을 계속 덧붙이는 상황이라면, 직전 기록분을 Baseline으로 선점 차감 준비
                 speechBaselineText = lastTranscriptPerIndex[currentSpeechStartIndex] || "";
             }
 
-            // 실시간 유입되는 모든 내부 결과 트랙의 텍스트 히스토리 캐시 상시 최신화
             for (let i = event.resultIndex; i < event.results.length; ++i) {
                 lastTranscriptPerIndex[i] = event.results[i][0].transcript;
             }
 
-            // 현재 시작 타겟 인덱스의 문자열 확보
             let localTranscript = event.results[currentSpeechStartIndex][0].transcript;
-            
-            // [요청 2 핵심] 만약 텍스트 버퍼에 이전 누름 세션의 '대한민국' 찌꺼기가 결합되어 있다면 통째로 도려내어 완전 격리 수행
             if (speechBaselineText && localTranscript.startsWith(speechBaselineText)) {
                 localTranscript = localTranscript.slice(speechBaselineText.length);
             }
 
-            // 격리가 완료된 청정 텍스트를 기반으로 후속 발음 스트림 결합 연산 수행
             let currentTranscript = localTranscript;
             for (let i = currentSpeechStartIndex + 1; i < event.results.length; ++i) {
                 currentTranscript += event.results[i][0].transcript;
@@ -260,8 +254,11 @@
             if (currentTranscript) {
                 const targetWord = document.getElementById("target-word").value.trim();
                 const cleanSpoken = currentTranscript.replace(/[\.\?\!\,\s]+/g, '');
-                const cleanTarget = targetWord.replace(/\s+/g, '');
+                
+                // ➡️ [추가] 손가락을 뗄 때 즉시 오답 처리를 하기 위해 최신 파싱 데이터를 전역 공간에 박제
+                latestCleanSpoken = cleanSpoken; 
 
+                const cleanTarget = targetWord.replace(/\s+/g, '');
                 const similarity = calculatePhoneticSimilarity(cleanSpoken, cleanTarget);
                 const percentScore = Math.round(similarity * 100);
 
@@ -274,18 +271,11 @@
                         <div class="text-xs text-gray-500 mt-1">인식: "${currentTranscript.trim()}" ≒ 목표: "${targetWord}"</div>
                     `;
                     logToStream('Success', `🎯 매칭 성공! 최종 일치율: ${percentScore}%`);
-                    logToStream('Speech', `실시간 격리 합격 버퍼 ➡️ "${cleanSpoken}"`);
-                    
                     startMicShutdownTimer();
                 } 
                 else if (isFinalResult) {
-                    document.getElementById("match-status").innerHTML = `
-                        <span class="text-red-500 font-bold">😢 아쉬워요! 다시 해보세요.</span>
-                        <div class="text-xs text-gray-500 mt-1">최종 확정된 발음: "${currentTranscript.trim()}"</div>
-                    `;
-                    logToStream('Error', `❌ 판정 낙방 일치율: ${percentScore}% (기준치 미달)`);
-                    logToStream('Speech', `불합격 프레임 수집 버퍼 ➡️ "${cleanSpoken}"`);
-                    startMicShutdownTimer();
+                    // 이제 구글 서버의 자연 종료는 백그라운드 로그용으로만 활용하고 UI 지연에는 영향을 주지 않게 됩니다.
+                    logToStream('System', `구글 서버의 문장 최종 확정 수신 완료 (일치율: ${percentScore}%)`);
                 } 
                 else {
                     if (isPressing) {
@@ -361,6 +351,25 @@
         isPressing = false;
 
         setRecordingUI(false);
+
+        // ➡️ [핵심 추가] 손을 뗐는데 아직 정답 처리가 안 되었다면? 
+        // 구글의 침묵 타임아웃 대기를 무력화하고 현재까지의 텍스트로 즉시 오답 확정 판정!
+        if (!hasPassed && latestCleanSpoken) {
+            const targetWord = document.getElementById("target-word").value.trim();
+            const cleanTarget = targetWord.replace(/\s+/g, '');
+            const similarity = calculatePhoneticSimilarity(latestCleanSpoken, cleanTarget);
+            const percentScore = Math.round(similarity * 100);
+
+            // 손을 떼는 순간 기준치 미달이면 즉시 피드백 인터페이스 출력!
+            document.getElementById("match-status").innerHTML = `
+                <span class="text-red-500 font-bold">😢 아쉬워요! 다시 해보세요.</span>
+                <div class="text-xs text-gray-500 mt-1">최종 입력 발음: "${latestCleanSpoken}"</div>
+            `;
+            logToStream('Error', `❌ [손떼기 강제 판정] 최종 일치율 미달 낙방: ${percentScore}%`);
+            
+            // 판정이 완료되었으므로 다음 입력을 위해 텍스트 스냅샷 초기화
+            latestCleanSpoken = ""; 
+        }
 
         if (isListening) {
             logToStream('System', "📥 버튼을 놓았습니다. 마이크 채널 무결성을 유지하며 5초 Keep-Alive 풀 작동 개시.");
