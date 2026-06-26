@@ -18,6 +18,13 @@
             70% { box-shadow: 0 0 0 15px rgba(244, 63, 94, 0); }
             100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
         }
+        /* [요청 1] 구형 기기 웹뷰 및 모든 브라우저에서 로그 텍스트를 확실하게 드래그 복사할 수 있도록 강제 규칙 지정 */
+        .selectable-log {
+            user-select: text !important;
+            -webkit-user-select: text !important;
+            -moz-user-select: text !important;
+            -ms-user-select: text !important;
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-4 select-none">
@@ -57,9 +64,9 @@
         <div class="bg-slate-900 rounded-xl p-3 text-left font-mono flex flex-col">
             <div class="text-[10px] text-gray-400 border-b border-gray-700 pb-1 mb-1 font-bold flex justify-between select-none">
                 <span>📡 시스템 실시간 스트림</span>
-                <span class="text-[9px] text-slate-500 font-normal">↕ 우측 하단을 드래그하여 높이 조절 가능</span>
+                <span class="text-[9px] text-slate-500 font-normal">↕ 우측 하단 조절 가능 / 🖱️ 로그 마우스 복사 가능</span>
             </div>
-            <div id="stream-log" class="text-xs text-emerald-400 break-words h-48 min-h-[100px] max-h-[600px] overflow-y-auto resize-y space-y-1 pr-1">
+            <div id="stream-log" class="selectable-log text-xs text-emerald-400 break-words h-48 min-h-[100px] max-h-[600px] overflow-y-auto resize-y space-y-1 pr-1">
                 <div class="text-slate-500">// 여기에 타임스탬프 기반 시스템 상태 로그가 차곡차곡 쌓입니다.</div>
             </div>
         </div>
@@ -128,32 +135,33 @@
     let currentSpeechStartIndex = -1;      
     let recognition = null;
 
-    // [변경] 한자 플랫폼 스펙의 고성능 타임스탬프형 누적형 로그 엔진 변환 바인딩
+    // [요청 2] 세션간 단어 얽힘 및 복사 결합 현상을 원천 방지하기 위한 델타 버퍼 추적기 변수
+    let speechBaselineText = "";           // 이번 터치 다운 직전까지 브라우저 세션에 누적되어 있던 기존 텍스트 스냅샷
+    let lastTranscriptPerIndex = {};       // Web Speech API의 내부 인덱스별 최종 문자열 상태 보존 객체
+
+    // 타임스탬프형 누적형 로그 엔진 ( selectable-log 자식 클래스 자동 부여 포함 )
     function logToStream(category, message) {
         const consoleBody = document.getElementById("stream-log");
         if (!consoleBody) return;
 
-        // 실시간 한국시(KST) 시간 포맷 획득 (HH:MM:SS)
         const time = new Date().toLocaleTimeString('ko-KR', { hour12: false });
         const logLine = document.createElement('div');
-        logLine.className = 'py-0.5 border-b border-slate-800/40 break-all text-[11px] leading-relaxed';
+        // 로그 라인 내부 요소도 드래그 복사가 풀리지 않도록 selectable-log 명시 바인딩
+        logLine.className = 'py-0.5 border-b border-slate-800/40 break-all text-[11px] leading-relaxed selectable-log';
         
         let colorClass = 'text-emerald-400';
         if (category === 'Error') colorClass = 'text-rose-400';
         if (category === 'Success') colorClass = 'text-cyan-400';
         if (category === 'System') colorClass = 'text-amber-400';
-        // [요청] 유저 목소리로 인식되어 추출된 텍스트 계열 데이터는 핫핑크(Fuchsia) 계열로 명확하게 차별 색상 격리
         if (category === 'Speech') colorClass = 'text-fuchsia-400 font-extrabold'; 
 
         logLine.innerHTML = `<span class="text-slate-500">[${time}]</span> <span class="${colorClass}">[${category}]</span> ${message}`;
         
         consoleBody.appendChild(logLine);
         
-        // 메모리 절약: 누적 로그 라인이 150개를 넘어가면 순차 선입선출 파괴 처리
         if (consoleBody.children.length > 150) {
             consoleBody.removeChild(consoleBody.firstChild);
         }
-        // 새 로그 적재 즉시 하단 스트림 자동 고정 스크롤
         consoleBody.scrollTop = consoleBody.scrollHeight;
     }
 
@@ -204,12 +212,10 @@
         recognition.interimResults = true;  
         recognition.maxAlternatives = 1;
 
-        // 마이크 인식 오디오 주파수 신호 유입 리스너 연동
         recognition.onsoundstart = function() {
             logToStream('System', "🎤 하드웨어 인터페이스 단으로 오디오 유입 감지됨");
         };
 
-        // 구글 서버 및 디바이스 오디오 채널이 소리를 들을 준비가 완벽히 완료된 시점 싱크업
         recognition.onstart = function() {
             isListening = true;
             if (isPressing) {
@@ -223,12 +229,29 @@
             if (!isListening) return;
             if (hasPassed) return; 
 
+            // [요청 2] 현재 누른 터치 다운 세션의 첫 오디오 스트림 프레임 윈도우 인덱스 락인
             if (currentSpeechStartIndex === -1) {
                 currentSpeechStartIndex = event.resultIndex;
+                // 만약 브라우저 엔진이 동일 인덱스에 발음을 계속 덧붙이는 상황이라면, 직전 기록분을 Baseline으로 선점 차감 준비
+                speechBaselineText = lastTranscriptPerIndex[currentSpeechStartIndex] || "";
             }
 
-            let currentTranscript = '';
-            for (let i = currentSpeechStartIndex; i < event.results.length; ++i) {
+            // 실시간 유입되는 모든 내부 결과 트랙의 텍스트 히스토리 캐시 상시 최신화
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                lastTranscriptPerIndex[i] = event.results[i][0].transcript;
+            }
+
+            // 현재 시작 타겟 인덱스의 문자열 확보
+            let localTranscript = event.results[currentSpeechStartIndex][0].transcript;
+            
+            // [요청 2 핵심] 만약 텍스트 버퍼에 이전 누름 세션의 '대한민국' 찌꺼기가 결합되어 있다면 통째로 도려내어 완전 격리 수행
+            if (speechBaselineText && localTranscript.startsWith(speechBaselineText)) {
+                localTranscript = localTranscript.slice(speechBaselineText.length);
+            }
+
+            // 격리가 완료된 청정 텍스트를 기반으로 후속 발음 스트림 결합 연산 수행
+            let currentTranscript = localTranscript;
+            for (let i = currentSpeechStartIndex + 1; i < event.results.length; ++i) {
                 currentTranscript += event.results[i][0].transcript;
             }
 
@@ -248,18 +271,17 @@
                     hasPassed = true;
                     document.getElementById("match-status").innerHTML = `
                         <span class="text-emerald-500 font-black">🎉 즉시 통과! (딩동댕)</span>
-                        <div class="text-xs text-gray-500 mt-1">인식: "${currentTranscript}" ≒ 목표: "${targetWord}"</div>
+                        <div class="text-xs text-gray-500 mt-1">인식: "${currentTranscript.trim()}" ≒ 목표: "${targetWord}"</div>
                     `;
-                    // [변경] 음성인식 확인 출력 카테고리를 'Speech' 토큰으로 매핑하여 차별 색상 가동
                     logToStream('Success', `🎯 매칭 성공! 최종 일치율: ${percentScore}%`);
-                    logToStream('Speech', `실시간 합격 확정 버퍼 ➡️ "${cleanSpoken}"`);
+                    logToStream('Speech', `실시간 격리 합격 버퍼 ➡️ "${cleanSpoken}"`);
                     
                     startMicShutdownTimer();
                 } 
                 else if (isFinalResult) {
                     document.getElementById("match-status").innerHTML = `
                         <span class="text-red-500 font-bold">😢 아쉬워요! 다시 해보세요.</span>
-                        <div class="text-xs text-gray-500 mt-1">최종 확정된 발음: "${currentTranscript}"</div>
+                        <div class="text-xs text-gray-500 mt-1">최종 확정된 발음: "${currentTranscript.trim()}"</div>
                     `;
                     logToStream('Error', `❌ 판정 낙방 일치율: ${percentScore}% (기준치 미달)`);
                     logToStream('Speech', `불합격 프레임 수집 버퍼 ➡️ "${cleanSpoken}"`);
@@ -267,7 +289,6 @@
                 } 
                 else {
                     if (isPressing) {
-                        // 실시간 매칭 진행 상황 출력 스트림 색상 차별화 연동
                         logToStream('Speech', `인식 중: "${cleanSpoken}" (실시간 매칭 점수: ${percentScore}%)`);
                     }
                 }
@@ -309,7 +330,10 @@
 
         isPressing = true;
         hasPassed = false;
+        
+        // [요청 2] 신규 터치 다운 시마다 이전 세션의 추적 앵커 인덱스 및 베이스라인 리셋
         currentSpeechStartIndex = -1; 
+        speechBaselineText = "";
 
         if (micShutdownTimer) {
             clearTimeout(micShutdownTimer);
