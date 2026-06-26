@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+
+<html lang="ko">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>음성 인식 및 발음 유사도 분석 샘플</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+
+        body {
+
+            background-color: #f3f4f6;
+
+        }
+
+    </style>
+
+</head>
+
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+
+
+<div class="max-w-md w-full bg-white rounded-2xl shadow-xl p-6 border border-gray-200">
+
+    <!-- 헤더 영역 -->
+
+    <div class="text-center mb-6">
+
+        <h1 class="text-2xl font-bold text-gray-800">🎙️ 발음 유사도 판정 테스트기</h1>
+
+        <p class="text-xs text-gray-500 mt-1">음성 인식과 자모 유사도 매칭 알고리즘의 작동 방식을 파악하는 프로토타입입니다.</p>
+
+    </div>
+
+
+
+    <!-- 목표 설정 영역 -->
+
+    <div class="mb-5">
+
+        <label class="block text-sm font-semibold text-gray-700 mb-1">🎯 맞추고 싶은 목표 단어</label>
+
+        <input type="text" id="target-word" value="대한민국" 
+
+               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center text-lg font-bold"
+
+               placeholder="예: 대한민국, 사과">
+
+        <p class="text-[11px] text-gray-400 mt-1 text-center">목표 단어를 바꾸고 테스트해볼 수 있습니다.</p>
+
+    </div>
+
+
+
+    <!-- 제어 버튼 영역 -->
+
+    <div class="mb-6">
+
+        <button id="mic-btn" onclick="toggleListening()" 
+
+                class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold rounded-xl transition duration-200 flex items-center justify-center gap-2 shadow-md">
+
+            <span id="mic-icon">🎤</span>
+
+            <span id="btn-text">말하기 시작</span>
+
+        </button>
+
+    </div>
+
+
+
+    <!-- 결과 분석 모니터 -->
+
+    <div class="space-y-4">
+
+        <!-- 판정 상태 및 점수 -->
+
+        <div class="bg-gray-50 rounded-xl p-4 border border-gray-100 text-center">
+
+            <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">실시간 판정 결과</h3>
+
+            <p id="match-status" class="text-lg font-bold text-gray-600 mt-1">대기 중...</p>
+
+            <div class="mt-2 text-sm text-gray-500">
+
+                발음 일치율: <span id="similarity-percentage" class="font-extrabold text-indigo-600">--%</span>
+
+            </div>
+
+            <p class="text-[11px] text-gray-400 mt-1">💡 60% 이상이면 유사 발음으로 인정하여 정답 판정합니다.</p>
+
+        </div>
+
+
+
+        <!-- 디버그 정보 디스플레이 -->
+
+        <div class="bg-slate-900 rounded-xl p-3 text-left font-mono">
+
+            <div class="text-[10px] text-gray-400 border-b border-gray-700 pb-1 mb-1 font-bold">📡 시스템 실시간 스트림</div>
+
+            <p id="stream-log" class="text-xs text-emerald-400 break-words min-h-[36px]">여기에 음성 인식 로그가 출력됩니다.</p>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<script>
+
+    // 한글 음절(가~힣)을 분해하기 위한 초성, 중성, 종성 매핑 테이블입니다.
+
+    const CHOSUNG = ["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
+
+    const JUNGSEONG = ["ㅏ","ㅐ","ㅑ","ㅒ","ㅓ","ㅔ","ㅕ","ㅖ","ㅗ","ㅘ","ㅙ","ㅚ","ㅛ","ㅜ","ㅝ","ㅞ","ㅟ","ㅠ","ㅡ","ㅢ","ㅣ"];
+
+    const JONGSEONG = ["","ㄱ","ㄲ","ㄳ","ㄴ","ㄴㅈ","ㄴㅎ","ㄷ","ㄹ","ㄹㄱ","ㄹㅁ","ㄹㅂ","ㄹㅅ","ㄹㅌ","ㄹㅍ","ㄹㅎ","ㅁ","ㅂ","ㅄ","ㅅ","ㅆ","ㅇ","ㅈ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
+
+
+
+    // 입력된 텍스트 중 한글을 자음과 모음 하나하나로 풀어 헤칩니다.
+
+    // 예: "대" -> ㄷ + ㅐ = "ㄷㅐ"
+
+    function disassembleKorean(str) {
+
+        let result = "";
+
+        for (let i = 0; i < str.length; i++) {
+
+            const charCode = str.charCodeAt(i);
+
+            // 한글 유니코드 영역 (가~힣: 44032 ~ 55203) 범위 내에 있는 경우
+
+            if (charCode >= 44032 && charCode <= 55203) {
+
+                const hangulCode = charCode - 44032;
+
+                const choIndex = Math.floor(hangulCode / 588);
+
+                const jungIndex = Math.floor((hangulCode - (choIndex * 588)) / 28);
+
+                const jongIndex = hangulCode % 28;
+
+                
+
+                result += CHOSUNG[choIndex] + JUNGSEONG[jungIndex] + JONGSEONG[jongIndex];
+
+            } else {
+
+                // 공백이 아니면 알파벳/숫자/기호 등은 공백을 빼고 그대로 결합
+
+                if (str[i] !== ' ') {
+
+                    result += str[i];
+
+                }
+
+            }
+
+        }
+
+        return result;
+
+    }
+
+
+
+    // 두 자모 문자열 간의 삽입, 삭제, 대체 비용을 비교해 거리를 계산합니다.
+
+    function getLevenshteinDistance(a, b) {
+
+        const matrix = [];
+
+        for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+
+        for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+
+
+
+        for (let i = 1; i <= b.length; i++) {
+
+            for (let j = 1; j <= a.length; j++) {
+
+                if (b.charAt(i - 1) === a.charAt(j - 1)) {
+
+                    matrix[i][j] = matrix[i - 1][j - 1];
+
+                } else {
+
+                    matrix[i][j] = Math.min(
+
+                        matrix[i - 1][j - 1] + 1, // 대체(Substitution)
+
+                        Math.min(
+
+                            matrix[i][j - 1] + 1, // 삽입(Insertion)
+
+                            matrix[i - 1][j] + 1  // 삭제(Deletion)
+
+                        )
+
+                    );
+
+                }
+
+            }
+
+        }
+
+        return matrix[b.length][a.length];
+
+    }
+
+
+
+    // 자모 분해 후 레벤슈타인 거리를 활용해 0.0 ~ 1.0 사이의 소수점을 도출합니다.
+
+    function calculatePhoneticSimilarity(wordA, wordB) {
+
+        const jamoA = disassembleKorean(wordA);
+
+        const jamoB = disassembleKorean(wordB);
+
+        
+
+        const maxLength = Math.max(jamoA.length, jamoB.length);
+
+        if (maxLength === 0) return 1.0;
+
+        
+
+        const distance = getLevenshteinDistance(jamoA, jamoB);
+
+        return 1 - (distance / maxLength);
+
+    }
+
+
+
+    let isListening = false;
+
+    let recognition;
+
+
+
+    function logToStream(message) {
+
+        document.getElementById("stream-log").textContent = message;
+
+    }
+
+
+
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        recognition = new SpeechRecognition();
+
+        recognition.lang = 'ko-KR'; // 한국어 인식 활성화
+
+        recognition.interimResults = true; // 유저가 말하는 도중의 실시간 텍스트 데이터 받기
+
+        recognition.maxAlternatives = 1;
+
+
+
+        // 마이크 인식 상태 및 소리 감지 리스너
+
+        recognition.onsoundstart = function() {
+
+            logToStream("🎤 소리가 유입되고 있습니다...");
+
+        };
+
+
+
+        recognition.onresult = function(event) {
+
+            let interimTranscript = '';
+
+            let finalTranscript = '';
+
+
+
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+
+                if (event.results[i].isFinal) {
+
+                    finalTranscript += event.results[i][0].transcript;
+
+                } else {
+
+                    interimTranscript += event.results[i][0].transcript;
+
+                }
+
+            }
+
+
+
+            // 실시간 미완성 결과 출력
+
+            if (interimTranscript) {
+
+                logToStream(`인식 중: "${interimTranscript}"`);
+
+            }
+
+
+
+            // 완전 확정된 목소리 결과 분석
+
+            if (finalTranscript) {
+
+                const cleanResult = finalTranscript.trim();
+
+                logToStream(`최종 확정된 입력값: "${cleanResult}"`);
+
+                evaluateSpeech(cleanResult);
+
+            }
+
+        };
+
+
+
+        // 음성 인식 종료 이벤트
+
+        recognition.onend = function() {
+
+            isListening = false;
+
+            updateUIState(false);
+
+        };
+
+
+
+        // 마이크 에러 처리 핸들러 (alert 사용 대신 화면 텍스트 교체식 우회)
+
+        recognition.onerror = function(event) {
+
+            console.error("음성인식 오류 감지:", event.error);
+
+            if (event.error === 'not-allowed') {
+
+                logToStream("🚨 오류: 마이크 접근 권한이 제한되었습니다.");
+
+                document.getElementById("match-status").innerHTML = "<span class='text-red-500'>⚠️ 마이크 사용 권한을 허용해 주세요!</span>";
+
+            } else if (event.error === 'no-speech') {
+
+                logToStream("💤 장시간 침묵으로 인해 인식이 자동으로 중단되었습니다.");
+
+            } else {
+
+                logToStream(`알 수 없는 에러가 발생했습니다: ${event.error}`);
+
+            }
+
+            isListening = false;
+
+            updateUIState(false);
+
+        };
+
+    } else {
+
+        // 비지원 환경 시 대체 화면 렌더링
+
+        setTimeout(() => {
+
+            document.getElementById("match-status").innerHTML = "<span class='text-red-500 font-bold'>⚠️ 현재 사용 중인 브라우저는 음성인식을 지원하지 않습니다. (Chrome 추천)</span>";
+
+        }, 100);
+
+        logToStream("이 브라우저에서는 사용할 수 없는 기능입니다.");
+
+    }
+
+
+
+    function toggleListening() {
+
+        if (!recognition) return;
+
+
+
+        if (!isListening) {
+
+            isListening = true;
+
+            updateUIState(true);
+
+            document.getElementById("match-status").innerHTML = "<span class='text-blue-500 font-bold'>👂 귀를 기울이고 있습니다...</span>";
+
+            document.getElementById("similarity-percentage").textContent = "--%";
+
+            recognition.start();
+
+        } else {
+
+            recognition.stop();
+
+        }
+
+    }
+
+
+
+    // 마이크 제어 버튼 인터페이스 갱신
+
+    function updateUIState(listening) {
+
+        const btn = document.getElementById("mic-btn");
+
+        const btnText = document.getElementById("btn-text");
+
+        const micIcon = document.getElementById("mic-icon");
+
+
+
+        if (listening) {
+
+            btn.classList.replace("bg-indigo-600", "bg-rose-500");
+
+            btn.classList.replace("hover:bg-indigo-700", "hover:bg-rose-600");
+
+            btnText.textContent = "듣는 중.. (클릭 시 중단)";
+
+            micIcon.textContent = "🛑";
+
+        } else {
+
+            btn.classList.replace("bg-rose-500", "bg-indigo-600");
+
+            btn.classList.replace("hover:bg-rose-600", "hover:bg-indigo-700");
+
+            btnText.textContent = "말하기 시작";
+
+            micIcon.textContent = "🎤";
+
+        }
+
+    }
+
+
+
+    function evaluateSpeech(spokenText) {
+
+        // 현재 설정되어 있는 목표 단어 호출
+
+        const targetWord = document.getElementById("target-word").value.trim();
+
+        
+
+        // 공백 및 불필요 문장부호 정리
+
+        const cleanSpoken = spokenText.replace(/[\.\?\!\,\s]+/g, '');
+
+        const cleanTarget = targetWord.replace(/\s+/g, '');
+
+
+
+        // 자모 유사도 연산
+
+        const similarity = calculatePhoneticSimilarity(cleanSpoken, cleanTarget);
+
+        const percentScore = Math.round(similarity * 100);
+
+
+
+        document.getElementById("similarity-percentage").textContent = `${percentScore}%`;
+
+
+
+        // 60% 이상 매칭 시 합격 처리 (다소 틀리게 말해도 통과하는 로직의 핵심)
+
+        if (similarity >= 0.6) {
+
+            document.getElementById("match-status").innerHTML = `
+
+                <span class="text-emerald-500 font-black">🎉 통과! (딩동댕)</span>
+
+                <div class="text-xs text-gray-500 mt-1">입력: "${spokenText}" ≒ 목표: "${targetWord}"</div>
+
+            `;
+
+            logToStream(`매칭 대성공! 일치율: ${percentScore}% (임계값 60% 통과)`);
+
+            if (isListening) recognition.stop();
+
+        } else {
+
+            document.getElementById("match-status").innerHTML = `
+
+                <span class="text-red-500 font-bold">😢 아쉬워요! 다시 해보세요.</span>
+
+                <div class="text-xs text-gray-500 mt-1">인식된 단어: "${spokenText}"</div>
+
+            `;
+
+            logToStream(`일치율 미달: ${percentScore}% (60% 기준치보다 부족합니다)`);
+
+        }
+
+    }
+
+</script>
+
+
+</body>
+
+</html>
