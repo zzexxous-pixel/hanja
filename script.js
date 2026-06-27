@@ -67,7 +67,7 @@ function toggleBookmark(index, event) {
     appLog('System', `즐겨찾기 토글 ➡️ #${index + 1} (${hanjaData[index].h}) : ${isRemoving ? '제거됨' : '등록됨'}`);
 }
 
-// 개별 한자 셀 내부의 즐겨찾기 별표 상태 제어 컴포넌트 클래스 스왑 처리
+// [그룹 4] 개별 한자 셀 내부의 즐겨찾기 별표 상태 제어 컴포넌트 클래스 스왑 처리
 function updateCellStarUI(index, isStarred) {
     const liveWrappers = document.querySelectorAll(`.star-wrapper-${index}`);
     liveWrappers.forEach(starWrapper => {
@@ -83,7 +83,7 @@ function updateCellStarUI(index, isStarred) {
     }
 }
 
-// 모달 팝업 내부의 상단 즐겨찾기 아이콘 상태 제어 컴포넌트 클래스 스왑 처리
+// [그룹 5] 모달 팝업 내부의 상단 즐겨찾기 아이콘 상태 제어 컴포넌트 클래스 스왑 처리
 function updateModalStarState(index) {
     const starBtn = document.getElementById('modal-star-btn');
     if (!starBtn) return;
@@ -127,7 +127,7 @@ function buildFavoritesDOM() {
             <div class="p-12 text-center">
                 <i class="fa-solid fa-star text-slate-200 text-6xl mb-4"></i>
                 <h3 class="text-lg font-bold text-slate-500">즐겨찾기 한자가 없습니다.</h3>
-                <p class="text-slate-400 mt-1 text-xs">한자 칸의 우측 상단 별표(★)를 눌러 추가해 보세요!</p>
+                <p class="text-slate-400 text-sm mt-1">한자 칸의 우측 상단 별표(★)를 눌러 추가해 보세요!</p>
             </div>
         `;
         return tableWrapper;
@@ -209,7 +209,7 @@ function toggleFavorites() {
     }
 }
 
-// 헤더 제어 컴포넌트 상태 스위칭 연동 로직
+// [그룹 1] 헤더 제어 컴포넌트 상태 스위칭 연동 로직
 function switchTab(tabNum) {
     activeTab = tabNum;
     const container = document.getElementById('table-view-container');
@@ -249,7 +249,7 @@ function switchTab(tabNum) {
     appLog('System', `화면 탭 전환 ➡️ 대상 탭: ${tabNum === 7 ? '★ 즐겨찾기' : tabNum + '페이지'}`);
 }
 
-// 자가 테스트 모드 토글 컴포넌트 스위칭 로직 연동
+// [그룹 2] 자가 테스트 모드 토글 컴포넌트 스위칭 로직 연동
 function toggleQuizMode() {
     isQuizMode = !isQuizMode;
     const btn = document.getElementById('btn-toggle-quiz');
