@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>음성 인식 연속 가속 테스트 컴포넌트</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 모든 로그 및 텍스트 영역의 자유로운 마우스 드래그 복사 강제 적용 */
+        .selectable-log {
+            user-select: text !important;
+            -webkit-user-select: text !important;
+            -moz-user-select: text !important;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-900 min-h-screen p-6 flex flex-col items-center select-none">
+
+<div class="max-w-5xl w-full bg-white shadow-md p-6 border border-gray-300 flex flex-col gap-4">
+    
+    <h1 class="text-xl font-bold text-gray-800 border-b pb-2">🎙️ 발음 유사도 판정 테스트기 (Concise Build)</h1>
+
+    <div class="flex gap-3 w-full">
+        <div class="flex items-center gap-2 flex-grow">
+            <span class="text-sm font-semibold text-gray-600 whitespace-nowrap">🎯 목표 단어:</span>
+            <input type="text" id="target-word" value="대한민국" 
+                   class="w-full px-3 py-2 border border-gray-300 rounded font-bold text-lg text-center focus:outline-none focus:ring-1 focus:ring-blue-500">
+        </div>
+        <button id="mic-btn" 
+                class="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold px-8 py-2 rounded transition shadow-sm touch-none whitespace-nowrap">
+            🎤 누른 채로 말하기 (Hold)
+        </button>
+    </div>
+
+    <div class="w-full">
+        <label class="block text-xs font-bold text-gray-500 mb-1">📋 실시간 판정 결과 누적 (버튼 누를 때 초기화)</label>
+        <textarea id="match-status-box" rows="5" readonly 
+                  class="w-full p-2 border border-gray-300 rounded font-mono text-xs bg-gray-50 text-gray-700 focus:outline-none selectable-log leading-relaxed shadow-inner"></textarea>
+    </div>
+
+    <div class="w-full">
+        <div class="text-xs font-bold text-gray-500 mb-1 flex justify-between">
+            <span>📡 시스템 실시간 스트림 (최신 15줄 유지)</span>
+            <span class="text-[10px] text-gray-400 font-normal">↕ 우측 하단 모서리를 잡고 드래그하여 높이 조절 가능</span>
+        </div>
+        <div id="stream-log" class="w-full p-2 border border-gray-300 rounded font-mono text-xs bg-slate-950 text-emerald-400 overflow-y-auto resize-y min-h-[120px] h-[280px] space-y-0.5 selectable-log">
+            <div class="text-slate-500">// 마이크 가동 내역 및 자모음 매칭 세부 데이터가 이곳에 적재됩니다.</div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // === 한글 자모 분해 및 발음 유사도 판정 엔진 알고리즘 ===
+    const CHOSUNG = ["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
+    const JUNGSEONG = ["ㅏ","ㅐ","ㅑ","ㅒ","ㅓ","ㅔ","ㅕ","ㅖ","ㅗ","ㅘ","ㅙ","ㅚ","ㅛ","ㅜ","ㅝ","ㅞ","ㅟ","ㅠ","ㅡ","ㅢ","ㅣ"];
+    const JONGSEONG = ["","ㄱ","ㄲ","ㄳ","ㄴ","ㄴㅈ","ㄴㅎ","ㄷ","ㄹ","ㄹㄱ","ㄹㅁ","ㄹㅂ","ㄹㅅ","ㄹㅌ","ㄹㅍ","ㄹㅎ","ㅁ","ㅂ","ㅄ","ㅅ","ㅆ","ㅇ","ㅈ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
+
+    function disassembleKorean(str) {
+        let result = "";
+        for (let i = 0; i < str.length; i++) {
+            const charCode = str.charCodeAt(i);
+            if (charCode >= 44032 && charCode <= 55203) {
+                const hangulCode = charCode - 44032;
+                const choIndex = Math.floor(hangulCode / 588);
+                const jungIndex = Math.floor((hangulCode - (choIndex * 588)) / 28);
+                const jongIndex = hangulCode % 28;
+                result += CHOSUNG[choIndex] + JUNGSEONG[jungIndex] + JONGSEONG[jongIndex];
+            } else {
+                if (str[i] !== ' ') result += str[i];
+            }
+        }
+        return result;
+    }
+
+    function getLevenshteinDistance(a, b) {
+        const matrix = [];
+        for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+        for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+
+        for (let i = 1; i <= b.length; i++) {
+            for (let j = 1; j <= a.length; j++) {
+                if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                    matrix[i][j] = matrix[i - 1][j - 1];
+                } else {
+                    matrix[i][j] = Math.min(
+                        matrix[i - 1][j - 1] + 1,
+                        Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1)
+                    );
+                }
+            }
+        }
+        return matrix[b.length][a.length];
+    }
+
+    function calculatePhoneticSimilarity(wordA, wordB) {
+        const jamoA = disassembleKorean(wordA);
+        const jamoB = disassembleKorean(wordB);
+        const maxLength = Math.max(jamoA.length, jamoB.length);
+        if (maxLength === 0) return 1.0;
+        const distance = getLevenshteinDistance(jamoA, jamoB);
+        return 1 - (distance / maxLength);
+    }
+
+    // === 상태 엔진 변수 제어 관리 ===
+    let isListening = false;               
+    let isPressing = false;                
+    let hasPassed = false;                 
+    let micShutdownTimer = null;           
+    let currentSpeechStartIndex = -1;      
+    let recognition = null;
+
+    // 결합 중복 방지 격리 변수
+    let speechBaselineText = "";           
+    let lastTranscriptPerIndex = {};       
+    let latestRawTranscript = "";          
+
+    // [요청 3] 3행 판정 결과 누적용 전용 연동 덤프 함수
+    function appendEvalResult(spoken, similarity, resultLabel) {
+        const resultBox = document.getElementById("match-status-box");
+        const time = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+        const percentScore = Math.round(similarity * 100);
+        
+        // 요구 양식 강제 적용 : 시간, 인식 단어, 일치율, 정답/오답 결과
+        const newLine = `[${time}] 인식 단어: "${spoken}" | 일치율: ${percentScore}% | 결과: ${resultLabel}\n`;
+        
+        resultBox.value += newLine;
+        resultBox.scrollTop = resultBox.scrollHeight; // 자동 스크롤 하단 고정
+    }
+
+    // [요청 4] 4행 타임스탬프 누적 로그 스트림 함수 (최신 15줄 유지)
+    function logToStream(category, message) {
+        const consoleBody = document.getElementById("stream-log");
+        if (!consoleBody) return;
+
+        const time = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+        const logLine = document.createElement('div');
+        logLine.className = 'py-0.5 border-b border-slate-900/40 break-all selectable-log';
+        
+        let colorClass = 'text-emerald-400';
+        if (category === 'Error') colorClass = 'text-rose-400';
+        if (category === 'Success') colorClass = 'text-cyan-400';
+        if (category === 'System') colorClass = 'text-amber-400';
+        // [요청] 음성인식 텍스트 핫핑크 색상 강조 분리 사양 유지
+        if (category === 'Speech') colorClass = 'text-fuchsia-400 font-bold'; 
+
+        logLine.innerHTML = `<span class="text-slate-500">[${time}]</span> <span class="${colorClass}">[${category}]</span> ${message}`;
+        
+        consoleBody.appendChild(logLine);
+        
+        // 15줄 규격 초과 시 선입선출 노드 자동 삭제 영구 격리
+        if (consoleBody.children.length > 15) {
+            consoleBody.removeChild(consoleBody.firstChild);
+        }
+        consoleBody.scrollTop = consoleBody.scrollHeight;
+    }
+
+    // 5초 자동 자원 유지 제어
+    function startMicShutdownTimer() {
+        if (micShutdownTimer) clearTimeout(micShutdownTimer);
+        micShutdownTimer = setTimeout(() => {
+            if (recognition && isListening) {
+                try {
+                    recognition.stop();
+                    logToStream('System', "⏱️ 5초 대기 만료: 마이크 하드웨어 자원을 오프(Idle) 처리했습니다.");
+                } catch (err) {
+                    console.error(err);
+                }
+                isListening = false;
+            }
+            micShutdownTimer = null;
+        }, 5000);
+    }
+
+    // UI 인스턴스 피드백 스왑 함수
+    function setRecordingUI(active) {
+        const btn = document.getElementById("mic-btn");
+        if (active) {
+            btn.className = "bg-rose-500 text-white font-bold px-8 py-2 rounded transition shadow-sm touch-none whitespace-nowrap mic-pulse-active";
+            btn.textContent = "🛑 녹음 중.. (말씀하세요)";
+        } else {
+            btn.className = "bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold px-8 py-2 rounded transition shadow-sm touch-none whitespace-nowrap";
+            btn.textContent = "🎤 누른 채로 말하기 (Hold)";
+        }
+    }
+
+    // === Web Speech API 가속 매칭 엔진 구성 ===
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        recognition.lang = 'ko-KR';
+        recognition.continuous = true;     
+        recognition.interimResults = true;  
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = function() {
+            isListening = true;
+            if (isPressing) {
+                setRecordingUI(true);
+                logToStream('System', "🎙️ 구글 클라우드 오디오 세션 게이트 개방 완료.");
+            }
+        };
+
+        recognition.onresult = function(event) {
+            if (!isListening) return;
+            if (hasPassed) return; 
+
+            if (currentSpeechStartIndex === -1) {
+                currentSpeechStartIndex = event.resultIndex;
+                speechBaselineText = lastTranscriptPerIndex[currentSpeechStartIndex] || "";
+            }
+
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                lastTranscriptPerIndex[i] = event.results[i][0].transcript;
+            }
+
+            let localTranscript = event.results[currentSpeechStartIndex][0].transcript;
+            if (speechBaselineText && localTranscript.startsWith(speechBaselineText)) {
+                localTranscript = localTranscript.slice(speechBaselineText.length);
+            }
+
+            let currentTranscript = localTranscript;
+            for (let i = currentSpeechStartIndex + 1; i < event.results.length; ++i) {
+                currentTranscript += event.results[i][0].transcript;
+            }
+
+            currentTranscript = currentTranscript.trim();
+            let isFinalResult = event.results[event.results.length - 1].isFinal;
+
+            if (currentTranscript) {
+                latestRawTranscript = currentTranscript; 
+
+                const targetWord = document.getElementById("target-word").value.trim();
+                const cleanSpoken = currentTranscript.replace(/[\.\?\!\,\s]+/g, '');
+                const cleanTarget = targetWord.replace(/\s+/g, '');
+
+                const similarity = calculatePhoneticSimilarity(cleanSpoken, cleanTarget);
+
+                // [케이스 A] 60% 합격 도과 즉시 실시간 통과 처리 개시
+                if (similarity >= 0.6) {
+                    hasPassed = true;
+                    // 3행 결과창 반영
+                    appendEvalResult(currentTranscript, similarity, "🎉 정답 (통과)");
+                    
+                    logToStream('Success', `🎯 매칭 통과! 일치율: ${Math.round(similarity * 100)}%`);
+                    logToStream('Speech', `실시간 매칭 값 ➡️ "${cleanSpoken}"`);
+                    
+                    setRecordingUI(false);
+                    startMicShutdownTimer();
+                } 
+                // [케이스 B] 실시간 미달 상태 연산 흐름 제어
+                else {
+                    if (isPressing) {
+                        // 사용자가 누르고 있는 동안에는 실시간 분석 중 상태 축적 누적
+                        appendEvalResult(currentTranscript, similarity, "⏳ 분석 중...");
+                        logToStream('Speech', `인식 중: "${cleanSpoken}" (점수: ${Math.round(similarity * 100)}%)`);
+                    } else if (isFinalResult) {
+                        // 손떼기 후 최종 마감 패킷이 왔을 때의 매칭 결과 확정 출력
+                        appendEvalResult(currentTranscript, similarity, "❌ 오답 (낙방)");
+                        logToStream('Error', `❌ 서버 최종 확정 불합격: ${Math.round(similarity * 100)}%`);
+                    }
+                }
+            }
+        };
+
+        recognition.onend = function() {
+            isListening = false;
+            setRecordingUI(false);
+            if (micShutdownTimer) {
+                clearTimeout(micShutdownTimer);
+                micShutdownTimer = null;
+            }
+            logToStream('System', "💤 오디오 캡처 파이프라인 정지.");
+        };
+
+        recognition.onerror = function(event) {
+            isListening = false;
+            setRecordingUI(false);
+            if (micShutdownTimer) {
+                clearTimeout(micShutdownTimer);
+                micShutdownTimer = null;
+            }
+            if (event.error === 'aborted') {
+                logToStream('System', "🔄 연타 처리를 위한 채널 버퍼 정렬.");
+                return;
+            }
+            logToStream('Error', `🚨 하드웨어 장애: ${event.error}`);
+        };
+    }
+
+    // === 0ms 무전기식 웜업 홀드 제어 구현 ===
+    function handlePressStart() {
+        if (!recognition) return;
+
+        isPressing = true;
+        hasPassed = false;
+        
+        currentSpeechStartIndex = -1; 
+        speechBaselineText = "";
+        latestRawTranscript = ""; 
+
+        // [요청 3] 누른 채로 말하기 버튼을 누르는 순간 3행 텍스트박스 초기화 처리 완료
+        document.getElementById("match-status-box").value = "";
+
+        if (micShutdownTimer) {
+            clearTimeout(micShutdownTimer);
+            micShutdownTimer = null;
+        }
+
+        if (isListening) {
+            setRecordingUI(true);
+            logToStream('System', "🚀 웜업 가동 중인 기존 채널 즉시 바인딩. (대기 지연 0ms 바이패스)");
+        } else {
+            logToStream('System', "⌛ 최초 커넥션 채널 동기화 시도 중...");
+            try {
+                recognition.start();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+    }
+
+    function handlePressEnd() {
+        if (!isPressing) return;
+        isPressing = false;
+
+        setRecordingUI(false);
+
+        // 손가락을 떼는 순간 아직 미달 상태라면 서버를 기다리지 않고 오답 강제 확정 스펙 기동
+        if (!hasPassed) {
+            const targetWord = document.getElementById("target-word").value.trim();
+            const cleanTarget = targetWord.replace(/\s+/g, '');
+            
+            if (latestRawTranscript) {
+                const cleanSpoken = latestRawTranscript.replace(/[\.\?\!\,\s]+/g, '');
+                const similarity = calculatePhoneticSimilarity(cleanSpoken, cleanTarget);
+                
+                // 3행 결과창에 즉시 오답 확정 노출 보장 완료
+                appendEvalResult(latestRawTranscript, similarity, "❌ 오답 (낙방)");
+                logToStream('Error', `❌ [손뗌 강제 판정] 불합격 처리 완료: ${Math.round(similarity * 100)}%`);
+            } else {
+                appendEvalResult("인식 불가", 0, "❌ 오답 (음성 미유입)");
+                logToStream('System', "📥 음성 인식 스트림 버퍼에 텍스트 프레임이 검출되지 않아 오답 처리 마감");
+            }
+        }
+
+        if (isListening) {
+            logToStream('System', "📥 마이크 연속 수집 유지 풀 가동 (5초 대기 개시)");
+            startMicShutdownTimer();
+        }
+    }
+
+    // === 마우스 및 터치 이벤트 딜레이 제어 바인딩 ===
+    const micBtn = document.getElementById("mic-btn");
+    
+    micBtn.addEventListener("mousedown", handlePressStart);
+    micBtn.addEventListener("mouseup", handlePressEnd);
+    micBtn.addEventListener("mouseleave", handlePressEnd); 
+
+    micBtn.addEventListener("touchstart", function(e) {
+        e.preventDefault(); 
+        handlePressStart();
+    }, { passive: false });
+    
+    micBtn.addEventListener("touchend", function(e) {
+        e.preventDefault();
+        handlePressEnd();
+    }, { passive: false });
+</script>
+
+</body>
+</html>

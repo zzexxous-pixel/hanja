@@ -1,219 +1,147 @@
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght=300;400;500;700;900&display=swap');
+@charset "UTF-8";
 
-/* 최적화: 구형 기기의 300ms 터치 반응 지연을 제거하고 스크롤 찌그러짐 방지 */
-html {
-    overflow-y: scroll;
-    scrollbar-gutter: stable;
-    touch-action: manipulation;
-}
-
+/* 전역 폰트 스펙 설정 및 안티앨리어싱 가속화 */
 body {
-    font-family: 'Noto Sans KR', sans-serif;
-    touch-action: manipulation;
+  font-family: 'Noto Sans KR', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  touch-action: manipulation; /* 모바일 300ms 터치 딜레이 강제 무력화 */
 }
 
-/* 불러온 구글 한자 폰트를 1순위로 지정 */
+/* LXGW WenKai TC 전용 한자 폰트 클래스 */
 .hanja-font {
-    font-family: 'LXGW WenKai TC', 'ChosunGs', 'Gungsuh', '궁서', sans-serif;
+  font-family: 'LXGW WenKai TC', cursive, serif;
 }
 
-/* 최적화: 무거운 그래픽 트랜지션 요소를 제거하여 가림/보이기 가동 즉시 반응 유도 */
-.quiz-blur-target {
-    will-change: filter; /* 브라우저 하드웨어 가속 힌트 제공 */
-    transform: translateZ(0); /* GPU 가속 가동 */
-    backface-visibility: hidden;
-    perspective: 1000px;
-}
-body.quiz-mode .quiz-blur-target:not(.solved) {
-    filter: blur(5px) !important;
-    user-select: none !important;
-    color: transparent !important;
-    text-shadow: 0 0 6px rgb(100 116 139) !important;
-}
-
-/* 글자 크기 동적 변수 기본값 제어 */
+/* 동적 루트 스타일 변수 지정 */
 :root {
-    --hanja-size: 45px;
-    --hun-size: 17px;
+  --hanja-size: 45px;
+  --hun-size: 17px;
 }
+
+/* 동적 폰트 스케일 가속 적용 */
 .dynamic-hanja-size {
-    font-size: var(--hanja-size) !important;
+  font-size: var(--hanja-size);
 }
+
 .dynamic-hun-size {
-    font-size: var(--hun-size) !important;
+  font-size: var(--hun-size);
 }
 
-/* 모바일 성능 향상 및 가변 한 글자 수 실현을 위한 핵심 반응형 그리드 선언 */
+/* 가변 그리드 반응형 레이아웃 픽셀 최적화 사양 */
 .hanja-responsive-grid {
-    display: grid !important;
-    grid-template-columns: repeat(auto-fill, minmax(calc(var(--hanja-size) * 2.2), 1fr)) !important;
-    gap: 0.75rem !important;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 0.75rem;
 }
 
-/* 테이블 스크롤바 디자인 */
-.table-container::-webkit-scrollbar {
-    height: 8px;
-}
-.table-container::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 4px;
-}
-.table-container::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 4px;
-}
-.table-container::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
+/* 미디어나 크기 변화 대응 임계점 브레이크 */
+@media (min-width: 640px) {
+  .hanja-responsive-grid {
+    grid-template-columns: repeat(auto-fill, minmax(125px, 1fr));
+    gap: 1rem;
+  }
 }
 
-/* 반응형 헤더 모바일/데스크탑 수평 극대화 정렬 그리드 시스템 */
-.responsive-header {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-}
-.header-title { grid-column: 1; grid-row: 1; justify-self: start; }
-.header-fontsize { grid-column: 2; grid-row: 1; justify-self: end; }
-.header-nav-fav { grid-column: 1; grid-row: 2; display: flex; align-items: center; gap: 8px; justify-self: start; }
-.header-quiz { grid-column: 2; grid-row: 2; justify-self: end; }
-
-/* 768px(태블릿 이상)일 때 1행 배치를 유지 */
-@media (min-width: 768px) {
-    .responsive-header {
-        grid-template-columns: 1fr auto auto auto;
-        grid-template-rows: 1fr;
-        gap: 12px;
-    }
-    .header-title { grid-column: 1; grid-row: 1; justify-self: start; }
-    .header-fontsize { grid-column: 2; grid-row: 1; justify-self: auto; }
-    .header-nav-fav { grid-column: 3; grid-row: 1; justify-self: auto; }
-    .header-quiz { grid-column: 4; grid-row: 1; justify-self: auto; }
+/* 퀴즈 모드 전환 시 하드웨어 가속 기반 블러 마스킹 처리 */
+body.quiz-mode .quiz-blur-target:not(.solved) {
+  filter: blur(5px) !important;
+  user-select: none !important;
+  color: transparent !important;
+  text-shadow: 0 0 6px rgb(100 116 139) !important;
 }
 
-/* 충분히 넓은 1024px 이상의 환경 */
-@media (min-width: 1024px) {
-    .responsive-header {
-        gap: 16px;
-    }
-}
-
-/* === 저사양 기기 최적화: 테두리 및 배경색 변경 기반의 고성능 빨간색 펄스 애니메이션 === */
-@keyframes mic-border-pulse {
-    0%, 100% {
-        border-color: #fca5a5;
-        background-color: #fef2f2;
-    }
-    50% {
-        border-color: #ef4444;
-        background-color: #fee2e2;
-    }
-}
-.mic-pulse-active {
-    animation: mic-border-pulse 1.2s infinite ease-in-out !important;
-    border-width: 1.5px !important;
-}
-
-/* 녹음 활성화 시 왼쪽 위 마이크 아이콘을 표시하고, 한자 번호는 완전히 숨김 */
-.recording-active .recording-icon {
-    display: inline-block !important;
-}
-.recording-active .number-label {
-    display: none !important;
-}
-
-/* === 정답 및 오답 전용 일회성 배경색 깜빡임 피드백 키프레임 === */
+/* 자가 테스트 모드 정답/오답 실시간 피드백 프레임 효과 */
 @keyframes flash-green {
-    0%, 100% { background-color: #ffffff; }
-    50% { background-color: #dcfce7; }
+  0%, 100% { border-color: #e2e8f0; background-color: #ffffff; }
+  50% { border-color: #22c55e; background-color: #dcfce7; }
 }
 .flash-correct {
-    animation: flash-green 0.6s ease-in-out !important;
+  animation: flash-green 0.6s ease-in-out !important;
+  border-width: 1.5px !important;
 }
 
 @keyframes flash-orange {
-    0%, 100% { background-color: #ffffff; }
-    50% { background-color: #ffedd5; }
+  0%, 100% { border-color: #e2e8f0; background-color: #ffffff; }
+  50% { border-color: #f97316; background-color: #ffedd5; }
 }
 .flash-incorrect {
-    animation: flash-orange 0.6s ease-in-out !important;
+  animation: flash-orange 0.6s ease-in-out !important;
+  border-width: 1.5px !important;
 }
 
-/* === 개발자용 디버그 콘솔 전용 레이아웃 가속 격리 및 맞춤형 스크롤바 === */
+/* 디버그 콘솔 성능 튜닝 */
 #dev-console-body {
-    contain: content; /* 자바스크립트로 로그 적재 시 브라우저 Reflow 차단 */
+  contain: content; /* 자바스크립트 데이터 유입 시 전체 돔 트리 Reflow 원천 방지 */
 }
 #dev-console-body::-webkit-scrollbar {
-    width: 6px;
+  width: 6px;
 }
 #dev-console-body::-webkit-scrollbar-track {
-    background: rgba(15, 23, 42, 0.5);
+  background: rgba(15, 23, 42, 0.5);
 }
 #dev-console-body::-webkit-scrollbar-thumb {
-    background: #1e293b;
-    border-radius: 3px;
-}
-#dev-console-body::-webkit-scrollbar-thumb:hover {
-    background: #334155;
+  background: #1e293b;
+  border-radius: 3px;
 }
 
 /* ==========================================================================
    표준 공통 UI 컴포넌트 시스템
    ========================================================================== */
 
-/* [그룹 1] 헤더 소형 제어 컴포넌트 (32px 박스 및 노란색 계열 통일) */
+/* [그룹 1] 헤더 소형 스퀘어 제어 컴포넌트 */
 .btn-header-ctrl {
-    width: 2rem; /* w-8 = 32px */
-    height: 2rem; /* h-8 = 32px */
-    border-radius: 0.375rem; /* rounded */
-    background-color: rgba(255, 255, 255, 0.1); /* bg-white/10 */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #facc15; /* text-yellow-400 (노란색 통일) */
-    font-weight: 700;
-    font-size: 0.75rem; /* text-xs */
-    transition: all 0.2s;
-    flex-shrink: 0;
+  width: 2rem; /* h-8 = 32px */
+  height: 2rem; /* w-8 = 32px */
+  border-radius: 0.375rem; /* rounded */
+  background-color: rgba(255, 255, 255, 0.1); /* bg-white/10 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #facc15; /* text-yellow-400 (노란색 통일) */
+  font-weight: 700;
+  font-size: 0.75rem; /* text-xs */
+  transition: all 0.2s;
+  flex-shrink: 0;
 }
 .btn-header-ctrl:hover {
-    background-color: rgba(255, 255, 255, 0.2);
-    color: #fef08a; /* text-yellow-200 */
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #fef08a; /* text-yellow-200 */
 }
 .btn-header-ctrl:active {
-    transform: scale(0.95);
+  transform: scale(0.95);
 }
 /* 토글 활성화 시 색상 반전 처리 스펙 */
 .btn-header-ctrl.active {
-    background-color: #facc15; /* 배경이 노란색으로 변경 */
-    color: #1e3a8a; /* 글자/아이콘이 헤더 딥블루톤으로 반전 */
+  background-color: #facc15; /* 배경이 노란색으로 변경 */
+  color: #1e3a8a; /* 글자/아이콘이 헤더 딥블루톤으로 반전 */
 }
 .btn-header-ctrl.active:hover {
-    background-color: #fde68a;
+  background-color: #fde68a;
 }
 /* 페이저 비활성화(즐겨찾기 화면 진입 시) 처리 스펙 */
 .btn-header-ctrl.disabled {
-    background-color: transparent;
-    color: #64748b; /* text-slate-500 */
-    pointer-events: none;
-    opacity: 0.5;
+  background-color: transparent;
+  color: #64748b; /* text-slate-500 */
+  pointer-events: none;
+  opacity: 0.5;
 }
 
 /* [그룹 2] 자가 테스트 모드 토글 컴포넌트 */
 .btn-quiz-toggle {
-    width: 7rem; /* w-28 */
-    height: 2.5rem; /* h-10 */
-    font-size: 0.75rem;
-    font-weight: 700;
-    border-radius: 0.5rem;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.375rem;
-    flex-shrink: 0;
+  width: 7rem; /* w-28 */
+  height: 2.5rem; /* h-10 */
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  flex-shrink: 0;
 }
 .btn-quiz-toggle.theme-yellow { background-color: #eab308; color: #0f172a; }
 .btn-quiz-toggle.theme-yellow:hover { background-color: #facc15; }
@@ -222,16 +150,16 @@ body.quiz-mode .quiz-blur-target:not(.solved) {
 
 /* [그룹 3] 상세 모달 와이드 알약형 액션 컴포넌트 */
 .btn-popup-action {
-    width: 100%;
-    padding-top: 0.625rem; padding-bottom: 0.625rem;
-    border-radius: 0.75rem;
-    font-weight: 500;
-    font-size: 0.875rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    transition: all 0.2s;
+  width: 100%;
+  padding-top: 0.625rem; padding-bottom: 0.625rem;
+  border-radius: 0.75rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
 }
 .btn-popup-action.theme-slate { background-color: #f1f5f9; color: #334155; }
 .btn-popup-action.theme-slate:hover { background-color: #e2e8f0; }
@@ -240,14 +168,14 @@ body.quiz-mode .quiz-blur-target:not(.solved) {
 
 /* [그룹 4] 순수 미니 아이콘 컴포넌트 (그리드 별표 기준 투명 배경 일치화) */
 .btn-mini-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: color 0.2s, transform 0.1s;
-    background: transparent;
-    border: none;
-    padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.2s, transform 0.1s;
+  background: transparent;
+  border: none;
+  padding: 0;
 }
 .btn-mini-icon:active { transform: scale(0.9); }
 /* 한자 그리드 별표 색상 스펙 */
@@ -263,13 +191,13 @@ body.quiz-mode .quiz-blur-target:not(.solved) {
 
 /* [그룹 5] 팝업 내부 상단 소형 아이콘 컴포넌트 */
 .btn-popup-top-icon {
-    padding: 0.25rem;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    border: none;
+  padding: 0.25rem;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
 }
 .btn-popup-top-icon.theme-star { font-size: 1.5rem; }
 .btn-popup-top-icon.theme-star.unstarred { color: #cbd5e1; }
@@ -282,12 +210,10 @@ body.quiz-mode .quiz-blur-target:not(.solved) {
 /* ==========================================================================
    퀴즈 모드 가동 상태에 따른 안내 가이드 문구 제어 인터페이스
    ========================================================================== */
-/* 평상시(기본값)에는 화면에서 완전히 보이지 않도록 드롭 격리 처리 */
 .quiz-guide-text {
-    display: none !important;
+  display: none !important;
 }
 
-/* [훈음 가리기] 버튼이 눌려 body에 quiz-mode가 활성화되면 정렬 상태를 유지하며 즉각 노출 */
 body.quiz-mode .quiz-guide-text {
-    display: inline-flex !important;
+  display: inline-flex !important;
 }
