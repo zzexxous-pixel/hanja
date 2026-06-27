@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>4급 한자 마스터</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v={{APP_VERSION}}">
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col select-none">
+
+    <header class="sticky top-0 z-40 bg-gradient-to-r from-blue-700 to-indigo-800 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-3 sm:px-6 lg:px-8">
+            <div class="responsive-header w-full">
+                
+                <div class="header-title flex items-center gap-2 shrink-0 cursor-default" onclick="handleTitleClick(event)" ontouchstart="handleTitleClick(event)">
+                    <i class="fa-solid fa-book-open text-yellow-300 text-lg"></i>
+                    <h1 class="text-base sm:text-lg font-black tracking-tight whitespace-nowrap">
+                        4급 한자 마스터
+                    </h1>
+                </div>
+
+                <div class="header-fontsize flex items-center gap-1 bg-blue-900/40 p-1 rounded-lg shrink-0 h-10">
+                    <span class="flex items-center gap-1 px-2 text-white shrink-0">
+                        <span class="text-xs font-semibold select-none">A</span>
+                        <span class="text-lg font-black select-none">A</span>
+                    </span>
+                    <button ontouchstart="fastTouch(event, () => adjustFontSize(-3))" onclick="adjustFontSize(-3)" class="btn-header-ctrl">
+                        <i class="fa-solid fa-minus"></i>
+                    </button>
+                    <button ontouchstart="fastTouch(event, () => adjustFontSize(3))" onclick="adjustFontSize(3)" class="btn-header-ctrl">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+                </div>
+
+                <div class="header-nav-fav flex items-center gap-2">
+                    <div id="pager-wrapper" class="flex items-center gap-1 bg-blue-950/40 p-1 rounded-lg h-10 text-white shadow-sm transition-all duration-200 shrink-0 select-none">
+                        <button id="btn-prev-page" ontouchstart="fastTouch(event, () => prevPage())" onclick="prevPage()" class="btn-header-ctrl" title="이전 페이지">
+                            <i class="fa-solid fa-caret-left text-sm"></i>
+                        </button>
+                        <span id="page-indicator" class="w-14 shrink-0 font-mono font-extrabold text-xs text-center text-white select-none">1 / 6</span>
+                        <button id="btn-next-page" ontouchstart="fastTouch(event, () => nextPage())" onclick="nextPage()" class="btn-header-ctrl" title="다음 페이지">
+                            <i class="fa-solid fa-caret-right text-sm"></i>
+                        </button>
+                    </div>
+
+                    <button id="tab-7" ontouchstart="fastTouch(event, () => toggleFavorites())" onclick="toggleFavorites()" class="btn-header-ctrl">
+                        <i class="fa-solid fa-star"></i>
+                    </button>
+                </div>
+
+                <button id="btn-toggle-quiz" ontouchstart="fastTouch(event, () => toggleQuizMode())" onclick="toggleQuizMode()" class="btn-quiz-toggle theme-yellow">
+                    <i class="fa-solid fa-eye-slash"></i> <span>훈음 가리기</span>
+                </button>
+
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div id="table-view-container" style="contain: layout paint;">
+            </div>
+    </main>
+
+    <div id="detail-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4 transition-opacity duration-300 opacity-0">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 transform scale-95 transition-transform duration-300">
+            <div class="flex justify-between items-center mb-4 border-b border-slate-50 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <button id="modal-star-btn" class="btn-popup-top-icon theme-star unstarred" title="즐겨찾기">
+                        <i class="fa-solid fa-star"></i>
+                    </button>
+                    <span class="text-sm font-bold text-slate-400 cursor-pointer select-none" id="modal-idx">NO. 001</span>
+                </div>
+                <button onclick="closeModal()" class="btn-popup-top-icon theme-close" title="닫기">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="flex flex-col items-center py-4 text-center">
+                <div class="hanja-font text-[7rem] sm:text-[8.5rem] font-bold text-slate-900 bg-slate-50 w-48 h-48 rounded-3xl flex items-center justify-center shadow-inner border border-slate-100 mb-6 leading-none" id="modal-hanja">
+                    家
+                </div>
+                <h3 class="text-2xl font-black text-blue-700 mb-2" id="modal-hun">집 가</h3>
+                <p class="text-slate-400 text-xs mb-6" id="modal-category">4급 배정한자</p>
+                <div class="w-full grid grid-cols-2 gap-2 text-sm">
+                    <button onclick="speakHanja()" class="btn-popup-action theme-slate">
+                        <i class="fa-solid fa-volume-high"></i> 훈음 듣기
+                    </button>
+                    <a id="naver-link" href="#" target="_blank" class="btn-popup-action theme-blue">
+                        <i class="fa-solid fa-search"></i> 사전 검색
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="dev-console" class="fixed bottom-0 left-0 w-full h-48 bg-slate-950/95 text-emerald-400 font-mono text-xs z-50 shadow-2xl border-t border-slate-800 flex flex-col hidden dev-console-wrapper select-text">
+        <div class="flex justify-between items-center bg-slate-900 px-4 py-2 border-b border-slate-800 shrink-0 select-none">
+            <span class="font-bold flex items-center gap-1.5 text-slate-300">
+                <i class="fa-solid fa-terminal text-emerald-500 animate-pulse"></i> 📡 System Log
+            </span>
+            <div class="flex items-center gap-3 pr-2">
+                <button onclick="clearDevConsole()" class="btn-mini-icon type-log-clear" title="로그 지우기">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+                <button onclick="toggleDevConsole()" class="btn-mini-icon type-log-close" title="콘솔 닫기">
+                    <i class="fa-solid fa-xmark text-base"></i>
+                </button>
+            </div>
+        </div>
+        <div id="dev-console-body" class="flex-grow p-4 overflow-y-auto space-y-1">
+            <div class="text-slate-500">// 개발자 디버그 콘솔 활성화 완료. 타이틀 영역 5회 연타 시 온/오프 가능합니다.</div>
+        </div>
+    </div>
+
+    <footer class="bg-slate-900 text-slate-400 border-t border-slate-800 mt-auto py-8">
+        <div class="max-w-7xl mx-auto px-4 text-center sm:px-6 lg:px-8">
+            <p class="text-xs">본 프로그램의 한자 훈음은 대한검정회 배정 표준안을 준수하여 교정 및 수록되었습니다.</p>
+            <p class="text-[11px] mt-2 text-slate-500">
+                한자 마스터 {{APP_VERSION}} | 업데이트: <span class="font-mono text-amber-400">{{COMMIT_DATE}}</span>
+            </p>
+            <p class="text-xs mt-2 text-slate-600">&copy; 2026 한자 학습 플랫폼 All Rights Reserved.</p>
+        </div>
+    </footer>
+
+    <script src="hanja_data.js?v={{APP_VERSION}}"></script>
+    <script src="script.js?v={{APP_VERSION}}"></script>
+</body>
+</html>
