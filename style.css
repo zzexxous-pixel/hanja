@@ -99,7 +99,9 @@ body.quiz-mode .quiz-blur-target:not(.solved) {
     }
 }
 
-/* === 저사양 기기 최적화: 테두리 및 배경색 변경 기반의 고성능 빨간색 펄스 애니메이션 === */
+/* === 저사양 기기 최적화: 가시적 6단계 상태 전용 애니메이션 및 고정 배경색 === */
+
+/* State 2, 3: 마이크 활성화 시 빨간색 펄스 */
 @keyframes mic-border-pulse {
     0%, 100% {
         border-color: #fca5a5;
@@ -113,6 +115,32 @@ body.quiz-mode .quiz-blur-target:not(.solved) {
 .mic-pulse-active {
     animation: mic-border-pulse 1.2s infinite ease-in-out !important;
     border-width: 1.5px !important;
+}
+
+/* State 4: 손떼기 후 백그라운드 채점 중(Pencil) 일 때의 노란색 펄스 */
+@keyframes checking-border-pulse {
+    0%, 100% {
+        border-color: #fde68a;
+        background-color: #fefdf0;
+    }
+    50% {
+        border-color: #f59e0b;
+        background-color: #fffbeb;
+    }
+}
+.checking-pulse-active {
+    animation: checking-border-pulse 0.9s infinite ease-in-out !important;
+    border-width: 1.5px !important;
+}
+
+/* State 5: 판정 확정 시 고정 고대비 배경 컬러 색상 */
+.card-final-correct {
+    background-color: #f0fdf4 !important; /* 연두색 고정 */
+    border-color: #bbf7d0 !important;
+}
+.card-final-incorrect {
+    background-color: #fff7ed !important; /* 주황색 고정 */
+    border-color: #ffedd5 !important;
 }
 
 /* 녹음 활성화 시 왼쪽 위 마이크 아이콘을 표시하고, 한자 번호는 완전히 숨김 */
