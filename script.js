@@ -67,8 +67,8 @@ function calculatePhoneticSimilarity(wordA, wordB) {
 let activeTab = 1;
 let preFavoriteTab = 1; 
 let isQuizMode = false;
-let micShutdownTimer = null; // 5초 Keep-Alive 대기 버퍼 제어용 전역 타이머 변수
-let currentHanjaSpeechStartIndex = -1; // 현재 터치한 한자의 음성 시작 버퍼 인덱스 추적 변수
+let micShutdownTimer = null; 
+let currentHanjaSpeechStartIndex = -1; 
 
 // 로컬스토리지 기반 북마크 배열
 let bookmarks = JSON.parse(localStorage.getItem('hanja_bookmarks')) || [];
@@ -83,7 +83,7 @@ const tabCache = {};
 // 음성 제어 및 모바일 스크롤 스레스홀드 보정 변수
 let pressStartTime = 0;
 let evaluationTargetIndex = null;
-let processingTargetIndex = null; // 비동기 음성 분석용 핵심 전용 보존 인덱스
+let processingTargetIndex = null; 
 let isListening = false;
 let wasHoldAction = false;
 let recognition = null;
@@ -99,11 +99,11 @@ let titleClickTimer = null;
 
 // Web Audio API 0ms 즉시 재생 주파수 합성 및 하이브리드 제어 변수셋
 let audioCtx = null;
-let forcedTimeoutTimer = null; // 1.2초 강제 채점 만료 처리를 위한 타이머 변수
-let isPressing = false;        // 현재 마우스/터치가 다운 스택 상태인지 보존하는 플래그
-let speechBaselineText = "";   // 격리 세션용 직전 누적 문자열 스냅샷 저장소
-let lastTranscriptPerIndex = {}; // 오디오 인덱스 보관 버퍼 객체
-let latestRawTranscript = "";  // 가용한 최신 음성 데이터 임시 소유권 변수
+let forcedTimeoutTimer = null; 
+let isPressing = false;        
+let speechBaselineText = "";   
+let lastTranscriptPerIndex = {}; 
+let latestRawTranscript = "";  
 
 function saveBookmarks() {
     localStorage.setItem('hanja_bookmarks', JSON.stringify(bookmarks));
@@ -143,7 +143,6 @@ function toggleBookmark(index, event) {
     appLog('System', `즐겨찾기 토글 ➡️ #${index + 1} (${hanjaData[index].h}) : ${isRemoving ? '제거됨' : '등록됨'}`);
 }
 
-// [그룹 4] 개별 한자 셀 내부의 즐겨찾기 별표 상태 제어 컴포넌트 클래스 스왑 처리
 function updateCellStarUI(index, isStarred) {
     const liveWrappers = document.querySelectorAll(`.star-wrapper-${index}`);
     liveWrappers.forEach(starWrapper => {
@@ -159,7 +158,6 @@ function updateCellStarUI(index, isStarred) {
     }
 }
 
-// [그룹 5] 모달 팝업 내부의 상단 즐겨찾기 아이콘 상태 제어 컴포넌트 클래스 스왑 처리
 function updateModalStarState(index) {
     const starBtn = document.getElementById('modal-star-btn');
     if (!starBtn) return;
@@ -237,7 +235,6 @@ function generateTableHTML(t, pageData, titleLabel) {
             <div class="hanja-card-wrapper bg-white border border-slate-100 rounded-xl p-3 flex flex-col items-center relative hover:bg-slate-50 transition-all shadow-sm" data-index="${globalIdx}">
                 <div class="w-full flex justify-between items-center mb-1 select-none">
                     <span class="card-status-label text-[10px] font-mono font-bold text-slate-400 leading-none flex items-center justify-center h-4 min-w-[24px]">#${globalIdx + 1}</span>
-                    
                     <span data-action="toggle-bookmark" data-index="${globalIdx}" class="star-wrapper-${globalIdx} btn-mini-icon type-star ${isStarred ? 'starred' : 'unstarred'}">
                         <i class="fa-solid fa-star"></i>
                     </span>
@@ -283,10 +280,10 @@ function toggleFavorites() {
     }
 }
 
-// [그룹 1] 헤더 제어 컴포넌트 상태 스위칭 연동 로직
 function switchTab(tabNum) {
     activeTab = tabNum;
     const container = document.getElementById('table-view-container');
+    if (!container) return;
     container.innerHTML = ''; 
 
     if (tabNum === 7) {
@@ -323,38 +320,6 @@ function switchTab(tabNum) {
     appLog('System', `화면 탭 전환 ➡️ 대상 탭: ${tabNum === 7 ? '★ 즐겨찾기' : tabNum + '페이지'}`);
 }
 
-// [그룹 2] 자가 테스트 모드 토글 컴포넌트 스위칭 로직 연동
-function toggleQuizMode() {
-    isQuizMode = !isQuizMode;
-    const btn = document.getElementById('btn-toggle-quiz');
-    
-    if (isQuizMode) {
-        document.body.classList.add('quiz-mode');
-        btn.className = "btn-quiz-toggle theme-emerald"; 
-        btn.querySelector('span').innerText = "훈음 보이기";
-        btn.querySelector('i').className = "fa-solid fa-eye w-4 text-center";
-    } else {
-        document.body.classList.remove('quiz-mode');
-        btn.className = "btn-quiz-toggle theme-yellow";  
-        btn.querySelector('span').innerText = "훈음 가리기";
-        btn.querySelector('i').className = "fa-solid fa-eye-slash w-4 text-center";
-    }
-
-    solvedHanjas.clear();
-
-    const liveElements = document.querySelectorAll('.quiz-blur-target');
-    liveElements.forEach(el => el.classList.remove('solved'));
-
-    for (let t = 1; t <= 6; t++) {
-        if (tabCache[t]) {
-            const cachedElements = tabCache[t].querySelectorAll('.quiz-blur-target');
-            cachedElements.forEach(el => el.classList.remove('solved'));
-        }
-    }
-
-    appLog('System', `훈음 가리기 상태 전환 ➡️ 현재: ${isQuizMode ? 'ON (블러 마스킹 수립)' : 'OFF (일반 가동)'}`);
-}
-
 function toggleSolvedState(globalIdx, forceSolved) {
     const isSolved = (forceSolved !== undefined) ? forceSolved : !solvedHanjas.has(globalIdx);
     if (isSolved) {
@@ -385,7 +350,7 @@ function handleHunClick(tdElement, globalIdx) {
     }
 }
 
-// === Web Audio API 0ms 즉시 재생 주파수 이펙터 스크립트 ===
+// === Web Audio API 주파수 오디오 합성기 ===
 function playSound(type) {
     try {
         if (!audioCtx) {
@@ -398,12 +363,11 @@ function playSound(type) {
         const now = audioCtx.currentTime;
         
         if (type === 'correct') {
-            // 정답음: 짧게 '띵동' -Sine 파형 상행 아르페지오 (C5 ➡️ E5 변이 가속)
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(523.25, now); // 도 (C5)
-            osc.frequency.setValueAtTime(659.25, now + 0.1); // 미 (E5)
+            osc.frequency.setValueAtTime(523.25, now); 
+            osc.frequency.setValueAtTime(659.25, now + 0.1); 
             gain.gain.setValueAtTime(0.2, now);
             gain.gain.exponentialRampToValueAtTime(0.005, now + 0.3);
             osc.connect(gain);
@@ -411,8 +375,6 @@ function playSound(type) {
             osc.start(now);
             osc.stop(now + 0.3);
         } else if (type === 'incorrect') {
-            // 오답음: 짧게 낮은음으로 '삐빕' - Triangle 파형을 이용한 2회 단발 버스트 신호
-            // 1타 삐
             const osc1 = audioCtx.createOscillator();
             const gain1 = audioCtx.createGain();
             osc1.type = 'triangle';
@@ -423,7 +385,7 @@ function playSound(type) {
             gain1.connect(audioCtx.destination);
             osc1.start(now);
             osc1.stop(now + 0.09);
-            // 2타 삐
+
             const osc2 = audioCtx.createOscillator();
             const gain2 = audioCtx.createGain();
             osc2.type = 'triangle';
@@ -440,31 +402,26 @@ function playSound(type) {
     }
 }
 
-// === 6단계 동적 카드 상태 머신 시각 조작 엔진 ===
+// === 6단계 동적 카드 상태 머신 조작 엔진 ===
 function updateCardUIState(index, state, passType) {
     const cardWrapper = document.querySelector(`.hanja-card-wrapper[data-index="${index}"]`);
     if (!cardWrapper) return;
     const statusLabel = cardWrapper.querySelector('.card-status-label');
     if (!statusLabel) return;
 
-    // 기 가동 중이던 모든 동적 CSS 클래스 믹싱 선제 리셋 회수
     cardWrapper.classList.remove('mic-pulse-active', 'recording-active', 'checking-pulse-active', 'card-final-correct', 'card-final-incorrect');
     
     if (state === 'idle') {
         statusLabel.innerHTML = `#${index + 1}`;
     } else if (state === 'touch') {
-        // State 1: 터치 대기 중 노란 모래시계
         statusLabel.innerHTML = `<span class="text-amber-500 font-bold">⏳</span>`;
     } else if (state === 'active') {
-        // State 2, 3: 가동 및 말하기 상태의 빨간 마이크 아이콘 점등
         statusLabel.innerHTML = `<i class="fa-solid fa-microphone text-red-500 text-sm animate-pulse"></i>`;
         cardWrapper.classList.add('mic-pulse-active', 'recording-active');
     } else if (state === 'checking') {
-        // State 4: 채점 연필 아이콘 및 노란 펄스 바인딩
         statusLabel.innerHTML = `<i class="fa-solid fa-pen text-amber-500 text-sm animate-pulse"></i>`;
         cardWrapper.classList.add('checking-pulse-active');
     } else if (state === 'final') {
-        // State 5: 추가 텍스트를 제거하고 요청하신 단독 아이콘 배치 규격 준수
         if (passType === 'correct') {
             statusLabel.innerHTML = `<span class="text-emerald-500 text-xs font-black">⭕</span>`;
             cardWrapper.classList.add('card-final-correct');
@@ -475,7 +432,6 @@ function updateCardUIState(index, state, passType) {
     }
 }
 
-// 최종 판단 집행 파이프라인 함수
 function executeFinalJudgment(index, isCorrect) {
     if (forcedTimeoutTimer) {
         clearTimeout(forcedTimeoutTimer);
@@ -489,15 +445,10 @@ function executeFinalJudgment(index, isCorrect) {
     } else {
         playSound('incorrect');
         updateCardUIState(index, 'final', 'incorrect');
-        // 오답 시 즐겨찾기(★) 목록 자동 강제 바인딩 로직 기획에 의거 완벽 제거 완료
     }
 }
 
-// ==========================================================================
-// === 음성 입력 시작, 이동, 종료 제어 및 5초 웜업 대기 풀 엔진 ===
-// ==========================================================================
-
-// 5초 자동 자원 회수(마이크 오프) 제어 헬퍼 함수
+// === 음성 입력 제어 풀 가동 스크립트 ===
 function startMicShutdownTimer() {
     if (micShutdownTimer) clearTimeout(micShutdownTimer);
     micShutdownTimer = setTimeout(() => {
@@ -512,7 +463,7 @@ function startMicShutdownTimer() {
         }
         micShutdownTimer = null;
         processingTargetIndex = null;
-    }, 5000); // 5초 연속 입력 임계치 설정
+    }, 5000);
 }
 
 function handleVoiceStart(e) {
@@ -548,7 +499,6 @@ function handleVoiceStart(e) {
         forcedTimeoutTimer = null;
     }
 
-    // 웜업 가용 판단 분기 제어
     if (isListening) {
         updateCardUIState(evaluationTargetIndex, 'active');
         appLog('System', '🚀 웜업 가동 중인 기존 채널 즉시 바인딩. (대기 지연 0ms 바이패스)');
@@ -583,9 +533,7 @@ function handleVoiceMove(e) {
 
         if (forcedTimeoutTimer) clearTimeout(forcedTimeoutTimer);
         
-        // 이탈 시 UI 롤백 
         updateCardUIState(evaluationTargetIndex, 'idle');
-
         isHolding = false;
         wasHoldAction = true; 
         
@@ -607,15 +555,13 @@ function handleVoiceEnd(e) {
     if (duration >= 300) {
         wasHoldAction = true;
         
-        // 손가락을 떼었을 때 아직 실시간 정답에 도달하지 못했다면 채점 대기 샌드박스 기동
         if (!hasPassed) {
             updateCardUIState(evaluationTargetIndex, 'checking');
-            appLog('System', `꾹 누르기 종료 ➡️ State 4: 채점 세션 기동 (1.2초 하드웨어 만료 카운트다운)`);
+            appLog('System', `꾹 누르기 종료 ➡️ State 4: 채점 세션 기동 (1.2초 만료 타임아웃)`);
             
             if (forcedTimeoutTimer) clearTimeout(forcedTimeoutTimer);
             forcedTimeoutTimer = setTimeout(() => {
                 if (!hasPassed) {
-                    // 1.2초 이내에 후속 클라우드 패킷이 상용 기준에 미달 시 최종 오답 처리 확정
                     executeFinalJudgment(processingTargetIndex, false);
                 }
             }, 1200);
@@ -624,11 +570,9 @@ function handleVoiceEnd(e) {
     } else {
         wasHoldAction = true; 
         if (forcedTimeoutTimer) clearTimeout(forcedTimeoutTimer);
-        
         updateCardUIState(evaluationTargetIndex, 'idle');
         if (!isListening) {
             processingTargetIndex = null; 
-            // 기획 변경 사항: 가리기 상태(퀴즈 모드)에서는 단발성 클릭에 대해 상세 모달 팝업 출력을 물리적으로 원천 차단
         } else {
             startMicShutdownTimer();
         }
@@ -687,16 +631,57 @@ function closeModal() {
     
     setTimeout(() => {
         modal.classList.add('hidden');
-        modal.classList.add('flex');
     }, 300);
+
+    appLog('System', '상세 모달 팝업 닫힘');
+}
+
+function speakHanja() {
+    if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(currentVoiceHun);
+        utterance.lang = 'ko-KR';
+        utterance.rate = 0.9;
+        window.speechSynthesis.speak(utterance);
+        appLog('System', `TTS 훈음 음성 재생 ➡️ "${currentVoiceHun}"`);
+    }
+}
+
+function handleTitleClick(e) {
+    if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+    }
+    titleClickCount++;
+    clearTimeout(titleClickTimer);
+    
+    if (titleClickCount >= 5) {
+        toggleDevConsole();
+        titleClickCount = 0;
+    } else {
+        titleClickTimer = setTimeout(() => {
+            titleClickCount = 0;
+        }, 2500);
+    }
+}
+
+function toggleDevConsole() {
+    const consoleEl = document.getElementById('dev-console');
+    if (!consoleEl) return;
+    if (consoleEl.classList.contains('hidden')) {
+        consoleEl.classList.remove('hidden');
+        appLog('System', '디버그 콘솔 인스턴스가 활성화되었습니다.');
+    } else {
+        consoleEl.classList.add('hidden');
+    }
 }
 
 function appLog(category, message) {
     const consoleBody = document.getElementById('dev-console-body');
     if (!consoleBody) return;
 
+    const time = new Date().toLocaleTimeString('ko-KR', { hour12: false });
     const logLine = document.createElement('div');
-    logLine.className = 'py-0.5 border-b border-slate-800 break-all';
+    logLine.className = 'py-0.5 border-b border-slate-900/30 break-all text-[11px] leading-relaxed';
     
     let colorClass = 'text-emerald-400';
     if (category === 'Error') colorClass = 'text-rose-400';
@@ -704,8 +689,7 @@ function appLog(category, message) {
     if (category === 'System') colorClass = 'text-amber-400';
     if (category === 'Speech') colorClass = 'text-fuchsia-400 font-bold';
 
-    logLine.innerHTML = `<span class="text-slate-500">[${new Date().toLocaleTimeString()}]</span> <span class="${colorClass}">[${category}]</span> ${message}`;
-    
+    logLine.innerHTML = `<span class="text-slate-600">[${time}]</span> <span class="${colorClass}">[${category}]</span> ${message}`;
     consoleBody.appendChild(logLine);
     
     if (consoleBody.children.length > 50) {
@@ -714,7 +698,7 @@ function appLog(category, message) {
     consoleBody.scrollTop = consoleBody.scrollHeight;
 }
 
-// === SpeechRecognition 실시간 가속 분석 및 이벤트 동기화 엔진 ===
+// === SpeechRecognition 실시간 가속 분석 엔진 ===
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
@@ -806,85 +790,48 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     };
 }
 
-// === 3. 이벤트 바인딩 및 부팅 생명주기 ===
+// === 4. 부팅 통합 바인딩 관리자 ===
 window.onload = function() {
+    appLog('System', '4급 배정한자 플랫폼 학습 엔진 초기화 가동 (공식 버전: {{APP_VERSION}})');
     preRenderStaticTables();
+    activeFavoriteIndices = [...bookmarks];
     
-    const mainContainer = document.getElementById('hanja-table-container');
-    const tabs = document.querySelectorAll('[data-tab]');
-    
-    function switchTabDOM(tabId) {
-        mainContainer.innerHTML = '';
-        if (tabId === 7) {
-            mainContainer.appendChild(buildFavoritesDOM());
-        } else {
-            mainContainer.appendChild(tabCache[tabId]);
-        }
-        
-        tabs.forEach(t => {
-            const tNum = parseInt(t.getAttribute('data-tab'));
-            if (tNum === tabId) {
-                t.classList.add('active');
-            } else {
-                t.classList.remove('active');
-            }
-        });
-        
-        // 7번(즐겨찾기) 탭 이동 시 페이지 전환용 이전/다음 제어 컴포넌트 비활성화
-        const prevBtn = document.querySelector('[data-action="prev-page"]');
-        const nextBtn = document.querySelector('[data-action="next-page"]');
-        if (prevBtn && nextBtn) {
-            if (tabId === 7) {
-                prevBtn.classList.add('disabled');
-                nextBtn.classList.add('disabled');
-            } else {
-                prevBtn.classList.remove('disabled');
-                nextBtn.classList.remove('disabled');
-            }
-        }
-    }
+    // 최초 1번 고정 페이지 즉시 렌더 로드
+    switchTab(1);
 
-    tabs.forEach(tab => {
-        tab.addEventListener('click', function(e) {
-            const targetTabNum = parseInt(this.getAttribute('data-tab'));
-            if (targetTabNum === 7) {
-                if (activeTab !== 7) preFavoriteTab = activeTab;
-                activeFavoriteIndices = [...bookmarks];
-            }
-            activeTab = targetTabNum;
-            switchTabDOM(activeTab);
-        });
-    });
+    const mainContainer = document.getElementById('table-view-container');
+    if (!mainContainer) return;
 
-    // 전역 이벤트 위임 방식으로 모바일 스크롤 간섭 및 고속 연타 구조 완벽 방어
+    // 데스크톱 마우스 청취 핸들러 연결
     mainContainer.addEventListener('mousedown', handleVoiceStart);
     mainContainer.addEventListener('mousemove', handleVoiceMove);
     mainContainer.addEventListener('mouseup', handleVoiceEnd);
     mainContainer.addEventListener('mouseleave', handleVoiceEnd);
 
-    mainContainer.addEventListener('touchstart', function(e) {
-        handleVoiceStart(e);
-    }, { passive: true });
-    
-    mainContainer.addEventListener('touchmove', function(e) {
-        handleVoiceMove(e);
-    }, { passive: true });
-    
-    mainContainer.addEventListener('touchend', function(e) {
-        handleVoiceEnd(e);
-    }, { passive: true });
+    // 모바일 터치 하드웨어 청취 핸들러 직결
+    mainContainer.addEventListener('touchstart', handleVoiceStart, { passive: true });
+    mainContainer.addEventListener('touchmove', handleVoiceMove, { passive: true });
+    mainContainer.addEventListener('touchend', handleVoiceEnd, { passive: true });
 
+    // 전역 통합 단일 클릭 위임 매핑 허브
     mainContainer.addEventListener('click', function(event) {
-        const target = event.target;
-        
-        const starBtn = target.closest('[data-action="toggle-bookmark"]');
-        if (starBtn) {
-            const idx = parseInt(starBtn.getAttribute('data-index'), 10);
-            toggleBookmark(idx, event);
+        const bookmarkBtn = event.target.closest('[data-action="toggle-bookmark"]');
+        if (bookmarkBtn) {
+            event.stopPropagation();
+            event.preventDefault();
+            const index = parseInt(bookmarkBtn.getAttribute('data-index'), 10);
+            toggleBookmark(index);
             if (activeTab === 7) {
-                activeFavoriteIndices = [...bookmarks];
-                switchTabDOM(7);
+                switchTab(7);
             }
+            return;
+        }
+
+        const hunCell = event.target.closest('[data-action="click-hun"]');
+        if (hunCell) {
+            event.stopPropagation();
+            const index = parseInt(hunCell.getAttribute('data-index'), 10);
+            handleHunClick(hunCell, index);
             return;
         }
 
@@ -895,35 +842,22 @@ window.onload = function() {
                 wasHoldAction = false;
                 return;
             }
-            // [기획 요구사항 반영] 훈음가리기 상태(isQuizMode === true) 시 상세 팝업창을 가동하지 않고 바이패스 무시 처리
             if (isQuizMode) {
-                return;
+                return; // 가리기 상태(퀴즈 모드)인 경우 모달 창 가동을 물리적으로 무시 차단
             }
-            
             const index = parseInt(hanjaCell.getAttribute('data-index'), 10);
             openModal(index);
             return;
         }
     });
 
-    // 외부 제어 영역 클릭 이벤트 바인딩
+    // 외부 제어 컨트롤러 위임 바인딩
     document.addEventListener('click', function(e) {
         const actionBtn = e.target.closest('[data-action]');
         if (!actionBtn) return;
-
         const action = actionBtn.getAttribute('data-action');
         
-        if (action === 'prev-page' && activeTab > 1 && activeTab !== 7) {
-            activeTab--;
-            switchTabDOM(activeTab);
-        } else if (action === 'next-page' && activeTab < 6 && activeTab !== 7) {
-            activeTab++;
-            switchTabDOM(activeTab);
-        } else if (action === 'font-zoom-in') {
-            adjustFontSize(2);
-        } else if (action === 'font-zoom-out') {
-            adjustFontSize(-2);
-        } else if (action === 'toggle-quiz') {
+        if (action === 'toggle-quiz') {
             isQuizMode = !isQuizMode;
             if (isQuizMode) {
                 document.body.classList.add('quiz-mode');
@@ -936,7 +870,6 @@ window.onload = function() {
                 actionBtn.innerHTML = `<i class="fa-solid fa-eye-slash"></i> <span>훈음 가리기</span>`;
                 appLog('System', '퀴즈 모드 해제 ➡️ 일반 열람 대기 상태');
                 
-                // 퀴즈 모드 해제 시 모든 한자의 상태를 초기 대기 상태로 일괄 복원
                 solvedHanjas.clear();
                 for (let i = 0; i < hanjaData.length; i++) {
                     updateCardUIState(i, 'idle');
@@ -948,63 +881,29 @@ window.onload = function() {
                         if (textSpan) textSpan.classList.remove('solved');
                     }
                 }
-                if (activeTab === 7) switchTabDOM(7);
-                else switchTabDOM(activeTab);
+                switchTab(activeTab);
             }
         } else if (action === 'close-modal') {
             closeModal();
         } else if (action === 'modal-tts') {
-            if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
-                const utterance = new SpeechSynthesisUtterance(currentVoiceHun);
-                utterance.lang = 'ko-KR';
-                utterance.rate = 0.85; 
-                window.speechSynthesis.speak(utterance);
-                appLog('System', `네이티브 TTS 발음 엔진 호출 완료: "${currentVoiceHun}"`);
-            } else {
-                appLog('Error', '현재 기기는 시스템 웹 브라우저 내장 TTS 기능을 지원하지 않습니다.');
-            }
+            speakHanja();
         }
     });
 
-    // 비밀 콘솔 기믹 트리거 바인딩
-    const titleTrigger = document.getElementById('secret-title-trigger');
-    if (titleTrigger) {
-        titleTrigger.addEventListener('click', function() {
-            titleClickCount++;
-            if (titleClickCount === 1) {
-                titleClickTimer = setTimeout(() => {
-                    titleClickCount = 0;
-                }, 2500);
-            }
-            if (titleClickCount >= 5) {
-                clearTimeout(titleClickTimer);
-                titleClickCount = 0;
-                const consoleWrapper = document.getElementById('dev-console-wrapper');
-                if (consoleWrapper) {
-                    consoleWrapper.classList.toggle('hidden');
-                    appLog('System', '🛠️ 하이엔드 개발자 전역 이벤트 스트림 드로어가 활성화되었습니다.');
-                }
-            }
-        });
-    }
+    // 모달 오프 포커싱 및 ESC 안전 닫기 보완
+    document.getElementById('detail-modal').addEventListener('click', function(e) {
+        if (e.target === this) closeModal();
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeModal();
+    });
 
-    const consoleClearBtn = document.getElementById('console-clear-btn');
-    if (consoleClearBtn) {
-        consoleClearBtn.addEventListener('click', function() {
-            const consoleBody = document.getElementById('dev-console-body');
-            if (consoleBody) consoleBody.innerHTML = '';
-        });
-    }
-
-    const consoleCloseBtn = document.getElementById('console-close-btn');
-    if (consoleCloseBtn) {
-        consoleCloseBtn.addEventListener('click', function() {
-            const consoleWrapper = document.getElementById('dev-console-wrapper');
-            if (consoleWrapper) consoleWrapper.classList.add('hidden');
-        });
-    }
-
-    // 기본 최초 1번 고정 탭 로드 진입
-    switchTabDOM(1);
+    // 디버그 터미널 컨트롤 기능 매핑
+    document.getElementById('console-clear-btn').addEventListener('click', () => {
+        const consoleBody = document.getElementById('dev-console-body');
+        if (consoleBody) consoleBody.innerHTML = '';
+    });
+    document.getElementById('console-close-btn').addEventListener('click', () => {
+        document.getElementById('dev-console').classList.add('hidden');
+    });
 };
