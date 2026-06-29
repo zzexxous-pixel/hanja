@@ -233,17 +233,20 @@ function generateTableHTML(t, pageData, titleLabel) {
         
         gridHTML += `
             <div class="hanja-card-wrapper bg-white border border-slate-100 rounded-xl p-3 flex flex-col items-center relative hover:bg-slate-50 transition-all shadow-sm" data-index="${globalIdx}">
-                <div class="w-full flex justify-between items-center mb-1 select-none">
+                <!-- 상단 가로 전체: 즐겨찾기 설정/해제 구역 -->
+                <div data-action="toggle-bookmark" data-index="${globalIdx}" class="w-full flex justify-between items-center mb-1 cursor-pointer select-none">
                     <span class="card-status-label text-[10px] font-mono font-bold text-slate-400 leading-none flex items-center justify-center h-4 min-w-[24px]">#${globalIdx + 1}</span>
-                    <span data-action="toggle-bookmark" data-index="${globalIdx}" class="star-wrapper-${globalIdx} btn-mini-icon type-star ${isStarred ? 'starred' : 'unstarred'}">
+                    <span class="star-wrapper-${globalIdx} btn-mini-icon type-star ${isStarred ? 'starred' : 'unstarred'}">
                         <i class="fa-solid fa-star"></i>
                     </span>
                 </div>
+                <!-- 중간 한자 영역 가로 전체: 일반모드 팝업 / 퀴즈모드 녹음 작동 구역 -->
                 <div data-action="open-modal" data-index="${globalIdx}" class="w-full flex justify-center items-center my-2 cursor-pointer select-none">
                     <span class="hanja-font dynamic-hanja-size font-bold text-slate-900 leading-none">
                         ${item.h}
                     </span>
                 </div>
+                <!-- 하단 훈음 영역 가로 전체: 일반모드 기능없음 / 퀴즈모드 훈음 가리기 해제 구역 -->
                 <div data-action="click-hun" data-index="${globalIdx}" class="w-full text-center border-t border-slate-50 pt-2 cursor-pointer">
                     <span id="hun-text-${globalIdx}" class="quiz-blur-target ${solvedClass} dynamic-hun-size font-bold text-slate-600" data-type="hun">
                         ${item.m}
@@ -469,7 +472,11 @@ function startMicShutdownTimer() {
 function handleVoiceStart(e) {
     if (!isQuizMode) return; 
 
-    const cardWrapper = e.target.closest('.hanja-card-wrapper');
+    // 중간 한자 영역 가로 전체([data-action="open-modal"])를 터치했는지 정밀 판정
+    const hanjaZone = e.target.closest('[data-action="open-modal"]');
+    if (!hanjaZone) return; // 상단이나 하단 영역 터치 시 녹음 기능 진입 방어 차단
+    
+    const cardWrapper = hanjaZone.closest('.hanja-card-wrapper');
     if (!cardWrapper) return;
     
     isPressing = true;
@@ -830,8 +837,12 @@ window.onload = function() {
         const hunCell = event.target.closest('[data-action="click-hun"]');
         if (hunCell) {
             event.stopPropagation();
+            // [요청 반영] 일반모드(isQuizMode가 false)일 때는 클릭이 유입되어도 아무런 동작을 하지 않음 (기능없음)
+            if (!isQuizMode) {
+                return;
+            }
             const index = parseInt(hunCell.getAttribute('data-index'), 10);
-            handleHunClick(hunCell, index);
+            handleHunClick(hunCell, index); // 퀴즈모드일 때만 정상 가동하여 훈음 노출
             return;
         }
 
@@ -862,7 +873,7 @@ window.onload = function() {
             if (isQuizMode) {
                 document.body.classList.add('quiz-mode');
                 actionBtn.className = "btn-quiz-toggle theme-emerald";
-                actionBtn.innerHTML = `<i class="fa-solid fa-eye"></i> <span>보여주기</span>`;
+                actionBtn.innerHTML = `<i class="fa-solid fa-eye"></i> <span>훈음 보이기</span>`;
                 appLog('System', '자가 테스트 퀴즈 모드 가동 (음성 학습 준비 완료)');
             } else {
                 document.body.classList.remove('quiz-mode');
