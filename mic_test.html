@@ -125,6 +125,61 @@
         return 1 - (distance / maxLength);
     }
 
+    // ➡️ [추가] 음절 단위 분해 함수 (초성, 중성, 종성 구조화)
+    function disassembleToSyllables(str) {
+        let result = [];
+        for (let i = 0; i < str.length; i++) {
+            const charCode = str.charCodeAt(i);
+            if (charCode >= 44032 && charCode <= 55203) {
+                const hangulCode = charCode - 44032;
+                const choIndex = Math.floor(hangulCode / 588);
+                const jungIndex = Math.floor((hangulCode - (choIndex * 588)) / 28);
+                const jongIndex = hangulCode % 28;
+                result.push({
+                    cho: CHOSUNG[choIndex],
+                    jung: JUNGSEONG[jungIndex],
+                    jong: JONGSEONG[jongIndex]
+                });
+            } else {
+                if (str[i] !== ' ') result.push({ cho: str[i], jung: '', jong: '' });
+            }
+        }
+        return result;
+    }
+
+    // ➡️ [추가] 종성 감점 완화(0.2점)가 반영된 음절 단위 편집 거리 계산 알고리즘
+    function calculateWeightedSimilarity(wordA, wordB) {
+        const arrA = disassembleToSyllables(wordA);
+        const arrB = disassembleToSyllables(wordB);
+        const maxLength = Math.max(arrA.length, arrB.length);
+        if (maxLength === 0) return 1.0;
+
+        const matrix = [];
+        for (let i = 0; i <= arrB.length; i++) matrix[i] = [i * 2.2]; // 음절 삭제 최대 비용 (1+1+0.2)
+        for (let j = 0; j <= arrA.length; j++) matrix[0][j] = j * 2.2; // 음절 삽입 최대 비용
+
+        for (let i = 1; i <= arrB.length; i++) {
+            for (let j = 1; j <= arrA.length; j++) {
+                const sA = arrA[j - 1];
+                const sB = arrB[i - 1];
+
+                // 자모별 가중치 차등 분기
+                let subCost = 0;
+                if (sA.cho !== sB.cho) subCost += 1.0;     // 초성 틀림: 1.0 감점
+                if (sA.jung !== sB.jung) subCost += 1.0;   // 중성 틀림: 1.0 감점
+                if (sA.jong !== sB.jong) subCost += 0.2;   // 종성 틀림/누락: 0.2 감점 완화 가이드 적용
+
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + subCost,
+                    matrix[i][j - 1] + 2.2,
+                    matrix[i - 1][j] + 2.2
+                );
+            }
+        }
+        const maxWeight = maxLength * 2.2;
+        return 1 - (matrix[arrB.length][arrA.length] / maxWeight);
+    }
+    
     // === 상태 관리 변수 ===
     let isListening = false;               
     let isPressing = false;                
