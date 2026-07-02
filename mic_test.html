@@ -421,9 +421,10 @@
         if (!isPressing) return;
         isPressing = false;
 
-        if (recognition) {
-            try { recognition.stop(); } catch(err){}
-        }
+        // ➡️ [초단음 버퍼 보존] 손을 떼더라도 마이크를 강제로 끄지 않고 구글 자연 종료 규격에 맡김 (stop 제거)
+        //if (recognition) {
+        //    try { recognition.stop(); } catch(err){}
+        //}
 
         if (hasPassed) {
             executeFinalDecision(true);
