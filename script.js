@@ -516,10 +516,11 @@ function handleVoiceEnd(e) {
     const index = evaluationTargetIndex;
     evaluationTargetIndex = null;
 
-    // [개정] 손을 떼는 순간 구글 서버 임계치 대기 없이 즉각적으로 하드웨어 오디오 스트림 수집 영구 차단 폐쇄
+    // ➡️ [초단음 버퍼 보존] 손을 떼더라도 마이크를 강제로 끄지 않고 구글 자연 종료 규격에 맡김 (stop 제거)
+    /*// [개정] 손을 떼는 순간 구글 서버 임계치 대기 없이 즉각적으로 하드웨어 오디오 스트림 수집 영구 차단 폐쇄
     if (recognition) {
         try { recognition.stop(); } catch(err){}
-    }
+    }*/
 
     // 손가락을 뗀 시점에 실시간 매칭으로 아직 정답 버퍼(⭕)를 통과하지 못한 카드만 독립 채점 스케줄러 진입
     const liveCardWrapper = document.querySelector(`.hanja-card-wrapper[data-index="${index}"]`);
