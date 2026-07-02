@@ -125,7 +125,7 @@
         return 1 - (distance / maxLength);
     }
 
-    // ➡️ [추가] 음절 단위 분해 함수 (초성, 중성, 종성 구조화)
+    // 음절 단위 분해 함수 (초성, 중성, 종성 구조화)
     function disassembleToSyllables(str) {
         let result = [];
         for (let i = 0; i < str.length; i++) {
@@ -147,7 +147,7 @@
         return result;
     }
 
-    // ➡️ [추가] 종성 감점 완화(0.2점)가 반영된 음절 단위 편집 거리 계산 알고리즘
+    // 종성 감점 완화(0.2점)가 반영된 음절 단위 편집 거리 계산 알고리즘
     function calculateWeightedSimilarity(wordA, wordB) {
         const arrA = disassembleToSyllables(wordA);
         const arrB = disassembleToSyllables(wordB);
@@ -163,11 +163,10 @@
                 const sA = arrA[j - 1];
                 const sB = arrB[i - 1];
 
-                // 자모별 가중치 차등 분기
                 let subCost = 0;
                 if (sA.cho !== sB.cho) subCost += 1.0;     // 초성 틀림: 1.0 감점
                 if (sA.jung !== sB.jung) subCost += 1.0;   // 중성 틀림: 1.0 감점
-                if (sA.jong !== sB.jong) subCost += 0.2;   // 종성 틀림/누락: 0.2 감점 완화 가이드 적용
+                if (sA.jong !== sB.jong) subCost += 0.2;   // 종성 틀림/누락: 0.2 감점 완화 적용
 
                 matrix[i][j] = Math.min(
                     matrix[i - 1][j - 1] + subCost,
@@ -179,38 +178,31 @@
         const maxWeight = maxLength * 2.2;
         return 1 - (matrix[arrB.length][arrA.length] / maxWeight);
     }
-
+    
     // === 상태 관리 변수 ===
     let isListening = false;               
     let isPressing = false;                
     let hasPassed = false;                 
-    let micShutdownTimer = null;           
-    let currentSpeechStartIndex = -1;      
     let recognition = null;
-
-    // 중복 문자열 결합 방지용 격리 세션 변수
-    let speechBaselineText = "";           
-    let lastTranscriptPerIndex = {};       
     let latestRawTranscript = "";          
 
     // Web Audio API 사운드 합성 제어 변수
     let audioCtx = null;
     let forcedTimeoutTimer = null; 
 
-    // [요청] 3행 판정 결과 누적용 전용 연동 덤프 함수 (시간, 인식 단어, 일치율, 정답/오답 결과)
+    // 3행 판정 결과 누적용 전용 연동 덤프 함수 (시간, 인식 단어, 일치율, 정답/오답 결과)
     function appendEvalResult(spoken, normalSim, weightedSim, resultLabel) {
         const resultBox = document.getElementById("match-status-box");
         const time = new Date().toLocaleTimeString('ko-KR', { hour12: false });
         const normalScore = Math.round(normalSim * 100);
         const weightedScore = Math.round(weightedSim * 100);
         
-        // 두 방식의 일치율 점수를 투명하게 대조 출력
         const newLine = `[${time}] 인식: "${spoken}" | 일반 채점: ${normalScore}% | 종성보정(0.2): ${weightedScore}% | 결과: ${resultLabel}\n`;
         resultBox.value += newLine;
         resultBox.scrollTop = resultBox.scrollHeight; 
     }
 
-    // [요청] 4행 타임스탬프 누적 로그 스트림 함수 (최신 15줄 규격 보존)
+    // 4행 타임스탬프 누적 로그 스트림 함수 (최신 15줄 규격 보존)
     function logToStream(category, message) {
         const consoleBody = document.getElementById("stream-log");
         if (!consoleBody) return;
@@ -234,24 +226,7 @@
         consoleBody.scrollTop = consoleBody.scrollHeight;
     }
 
-    // 5초 자동 백그라운드 세션 자원회수 스케줄러
-    function startMicShutdownTimer() {
-        if (micShutdownTimer) clearTimeout(micShutdownTimer);
-        micShutdownTimer = setTimeout(() => {
-            if (recognition && isListening) {
-                try {
-                    recognition.stop();
-                    logToStream('System', "⏱️ 5초 대기 만료: 백그라운드 마이크 파이프라인 자원을 회수했습니다.");
-                } catch (err) {
-                    console.error(err);
-                }
-                isListening = false;
-            }
-            micShutdownTimer = null;
-        }, 5000);
-    }
-
-    // [요청] Web Audio API 0ms 지연 기계식 주파수 사운드 이펙터
+    // Web Audio API 0ms 지연 기계식 주파수 사운드 이펙터
     function playSound(type) {
         try {
             if (!audioCtx) {
@@ -262,18 +237,16 @@
             const now = audioCtx.currentTime;
             
             if (type === 'correct') {
-                // 정답음: 짧게 '띵동' - Sine 파형 높은 아르페지오 (C5 ➡️ E5 변이 가속)
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
                 osc.type = 'sine';
-                osc.frequency.setValueAtTime(523.25, now); // 도 (C5)
-                osc.frequency.setValueAtTime(659.25, now + 0.08); // 미 (E5)
+                osc.frequency.setValueAtTime(523.25, now); 
+                osc.frequency.setValueAtTime(659.25, now + 0.08); 
                 gain.gain.setValueAtTime(0.15, now);
                 gain.gain.exponentialRampToValueAtTime(0.005, now + 0.25);
                 osc.connect(gain); gain.connect(audioCtx.destination);
                 osc.start(now); osc.stop(now + 0.25);
             } else if (type === 'incorrect') {
-                // 오답음: 짧게 낮은음으로 '삐빕' - Triangle 파형 연속 2회 단발 사운드
                 const osc1 = audioCtx.createOscillator(); const gain1 = audioCtx.createGain();
                 osc1.type = 'triangle'; osc1.frequency.setValueAtTime(160, now);
                 gain1.gain.setValueAtTime(0.2, now); gain1.gain.exponentialRampToValueAtTime(0.005, now + 0.07);
@@ -291,11 +264,10 @@
         }
     }
 
-    // [요청] 기획 전용 제어 버튼 기반 6단계 상태 머신 UI 변환기
+    // 기획 전용 제어 버튼 기반 6단계 상태 머신 UI 변환기
     function updateStateUI(state, passType) {
         const btn = document.getElementById("mic-btn");
         
-        // 가동 중이던 모든 상태 스타일 클래스 및 펄스 효과 완전 회수
         btn.className = "text-white font-bold px-8 py-2 rounded transition shadow-sm touch-none whitespace-nowrap min-w-[240px]";
         btn.classList.remove('mic-pulse-active', 'checking-pulse-active', 'btn-final-correct', 'btn-final-incorrect');
 
@@ -303,19 +275,15 @@
             btn.classList.add('bg-blue-600', 'hover:bg-blue-700', 'active:bg-blue-800');
             btn.innerHTML = `🎤 누른 채로 말하기 (Hold)`;
         } else if (state === 'touch') {
-            // State 1: 터치 개시 (연결 수립 대기)
             btn.classList.add('bg-amber-500');
             btn.innerHTML = `<span class="text-white">⏳ 연결 중...</span>`;
         } else if (state === 'active') {
-            // State 2, 3: 마이크 개방 및 발음 대기 (빨간 마이크 지정 사양 완수)
             btn.classList.add('bg-rose-100', 'text-rose-700', 'border-rose-400', 'mic-pulse-active');
             btn.innerHTML = `<i class="fa-solid fa-microphone text-red-500 animate-pulse"></i> 🎙️ 녹음 중...`;
         } else if (state === 'checking') {
-            // State 4: 손을 뗐으나 잔여 오디오 프레임 파싱 대기 중 (연필 아이콘 및 노란색 펄스)
             btn.classList.add('bg-amber-500', 'checking-pulse-active');
             btn.innerHTML = `✏️ 채점 중...`;
         } else if (state === 'final') {
-            // State 5: 결산 확정 (텍스트 제거, 순수 녹색 O, 빨간색 X 아이콘 단독 출력)
             if (passType === 'correct') {
                 btn.classList.add('btn-final-correct');
                 btn.innerHTML = `<span class="text-white text-lg font-black">⭕</span>`;
@@ -338,11 +306,10 @@
         const cleanTarget = targetWord.replace(/\s+/g, '');
         const cleanSpokenRef = cleanSpoken.replace(/[\.\?\!\,\s]+/g, '');
 
-        // 일반 평면 거리 방식과 종성 가중치 방식 스냅샷 동시 추출
         const normalSim = calculatePhoneticSimilarity(cleanSpokenRef, cleanTarget);
         const weightedSim = calculateWeightedSimilarity(cleanSpokenRef, cleanTarget);
 
-        if (isCorrect || weightedSim >= 0.6) { // 종성 보정 점수가 60% 이상이면 합격 승인
+        if (isCorrect || weightedSim >= 0.6) {
             playSound('correct');
             updateStateUI('final', 'correct');
             appendEvalResult(cleanSpoken, normalSim, weightedSim, "⭕ 맞아요!");
@@ -355,12 +322,12 @@
         }
     }
 
-    // === Web Speech API 연속 가속 분석 엔진 빌드 ===
+    // === Web Speech API 단발성 독립 분석 엔진 빌드 ===
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognition = new SpeechRecognition();
         recognition.lang = 'ko-KR';
-        recognition.continuous = true;     
+        recognition.continuous = false;     // 매칭 간섭을 차단하기 위한 단발성 세션 수립
         recognition.interimResults = true;  
         recognition.maxAlternatives = 1;
 
@@ -376,26 +343,7 @@
             if (!isListening) return;
             if (hasPassed) return; 
 
-            if (currentSpeechStartIndex === -1) {
-                currentSpeechStartIndex = event.resultIndex;
-                speechBaselineText = lastTranscriptPerIndex[currentSpeechStartIndex] || "";
-            }
-
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-                lastTranscriptPerIndex[i] = event.results[i][0].transcript;
-            }
-
-            let localTranscript = event.results[currentSpeechStartIndex][0].transcript;
-            if (speechBaselineText && localTranscript.startsWith(speechBaselineText)) {
-                localTranscript = localTranscript.slice(speechBaselineText.length);
-            }
-
-            let currentTranscript = localTranscript;
-            for (let i = currentHanjaSpeechStartIndex + 1; i < event.results.length; ++i) {
-                currentTranscript += event.results[i][0].transcript;
-            }
-
-            currentTranscript = currentTranscript.trim();
+            let currentTranscript = event.results[0][0].transcript;
             let isFinalResult = event.results[event.results.length - 1].isFinal;
 
             if (currentTranscript) {
@@ -404,28 +352,25 @@
                 const targetWord = document.getElementById("target-word").value.trim();
                 const cleanSpoken = currentTranscript.replace(/[\.\?\!\,\s]+/g, '');
                 const cleanTarget = targetWord.replace(/\s+/g, '');
-
-                // 실시간 상태 추적용 대조 점수 계산
+                
                 const normalSim = calculatePhoneticSimilarity(cleanSpoken, cleanTarget);
                 const weightedSim = calculateWeightedSimilarity(cleanSpoken, cleanTarget);
 
-                if (weightedSim >= 0.6) { // 하이패스 정답 조기 도과 기준을 보정형 알고리즘으로 대체
+                if (weightedSim >= 0.6) {
                     hasPassed = true;
                     playSound('correct'); 
                     logToStream('Success', `🎯 [보정 통과] 음성 입력 도중 정답 도달 (일반: ${Math.round(normalSim*100)}% / 보정: ${Math.round(weightedSim*100)}%)`);
                     if (!isPressing) {
                         executeFinalDecision(true);
                     }
-                    startMicShutdownTimer();
                 } else if (isFinalResult) {
-                    logToStream('Speech', `클라우드 최종 프레임 수신됨 (일치율: ${Math.round(similarity * 100)}%)`);
-                    // 버튼에서 이미 손을 뗐고 채점 대기 중인 경우 최종 낙방 처리 확정
+                    logToStream('Speech', `클라우드 최종 프레임 수신됨 (일반: ${Math.round(normalSim*100)}% | 보정: ${Math.round(weightedSim*100)}%)`);
                     if (!isPressing && !hasPassed) {
                         executeFinalDecision(false);
                     }
                 } else {
                     if (isPressing) {
-                        logToStream('Speech', `🎙️ 실시간 분석 중: "${cleanSpoken}" (현재 일치율: ${Math.round(similarity * 100)}%)`);
+                        logToStream('Speech', `🎙️ 실시간 분석 중: "${cleanSpoken}" (일반: ${Math.round(normalSim*100)}% | 보정: ${Math.round(weightedSim*100)}%)`);
                     }
                 }
             }
@@ -433,10 +378,6 @@
 
         recognition.onend = function() {
             isListening = false;
-            if (micShutdownTimer) {
-                clearTimeout(micShutdownTimer);
-                micShutdownTimer = null;
-            }
             logToStream('System', "💤 마이크 스트림 세션 마감 ➡️ Idle 전환");
         };
 
@@ -457,34 +398,22 @@
 
         isPressing = true;
         hasPassed = false;
-        
-        currentSpeechStartIndex = -1; 
-        speechBaselineText = "";
         latestRawTranscript = ""; 
 
-        // [요청 사양] 누른 채로 말하기 버튼을 누르는 즉시 3행 결과 영역 완전 초기화 청소
         document.getElementById("match-status-box").value = "";
 
-        if (micShutdownTimer) {
-            clearTimeout(micShutdownTimer);
-            micShutdownTimer = null;
-        }
         if (forcedTimeoutTimer) {
             clearTimeout(forcedTimeoutTimer);
             forcedTimeoutTimer = null;
         }
 
-        if (isListening) {
-            updateStateUI('active');
-            logToStream('System', "🚀 웜업 가동 중인 기존 채널 즉시 바인딩. (대기 지연 0ms 바이패스)");
-        } else {
-            updateStateUI('touch');
-            logToStream('System', "⌛ 최초 채널 동기화 핸드셰이크 가동");
-            try {
-                recognition.start();
-            } catch (err) {
-                console.error(err);
-            }
+        updateStateUI('touch');
+        logToStream('System', "⌛ 최초 채널 동기화 핸드셰이크 가동");
+        try {
+            recognition.stop(); // 연타 시 드라이버 데드락 방지 가드
+            recognition.start();
+        } catch (err) {
+            try { recognition.start(); } catch(e){}
         }
     }
 
@@ -492,25 +421,22 @@
         if (!isPressing) return;
         isPressing = false;
 
-        // [4단계 사양] 손을 떼었을 때 이미 정답 플래그가 참이면 즉시 매핑 처리
+        if (recognition) {
+            try { recognition.stop(); } catch(err){}
+        }
+
         if (hasPassed) {
             executeFinalDecision(true);
         } else {
-            // 아직 정답에 도달하지 못했다면 잔여 패킷을 위해 1.2초 채점 완충 지대 기동
             updateStateUI('checking');
             logToStream('System', "📥 버튼 홀드 종료 ➡️ State 4: 채점 세션 진입 (1.2초 강제 마감 타이머 작동)");
             
             if (forcedTimeoutTimer) clearTimeout(forcedTimeoutTimer);
             forcedTimeoutTimer = setTimeout(() => {
                 if (!hasPassed) {
-                    // 1.2초 만료 순간까지 정답 미달 시 최종 오답으로 강제 판정 탕!
                     executeFinalDecision(false);
                 }
             }, 1200);
-        }
-
-        if (isListening) {
-            startMicShutdownTimer();
         }
     }
 
