@@ -179,7 +179,7 @@
         const maxWeight = maxLength * 2.2;
         return 1 - (matrix[arrB.length][arrA.length] / maxWeight);
     }
-    
+
     // === 상태 관리 변수 ===
     let isListening = false;               
     let isPressing = false;                
@@ -198,12 +198,14 @@
     let forcedTimeoutTimer = null; 
 
     // [요청] 3행 판정 결과 누적용 전용 연동 덤프 함수 (시간, 인식 단어, 일치율, 정답/오답 결과)
-    function appendEvalResult(spoken, similarity, resultLabel) {
+    function appendEvalResult(spoken, normalSim, weightedSim, resultLabel) {
         const resultBox = document.getElementById("match-status-box");
         const time = new Date().toLocaleTimeString('ko-KR', { hour12: false });
-        const percentScore = Math.round(similarity * 100);
+        const normalScore = Math.round(normalSim * 100);
+        const weightedScore = Math.round(weightedSim * 100);
         
-        const newLine = `[${time}] 인식 단어: "${spoken}" | 일치율: ${percentScore}% | 결과: ${resultLabel}\n`;
+        // 두 방식의 일치율 점수를 투명하게 대조 출력
+        const newLine = `[${time}] 인식: "${spoken}" | 일반 채점: ${normalScore}% | 종성보정(0.2): ${weightedScore}% | 결과: ${resultLabel}\n`;
         resultBox.value += newLine;
         resultBox.scrollTop = resultBox.scrollHeight; 
     }
@@ -333,22 +335,23 @@
 
         const targetWord = document.getElementById("target-word").value.trim();
         const cleanSpoken = latestRawTranscript || "인식 불가";
+        const cleanTarget = targetWord.replace(/\s+/g, '');
+        const cleanSpokenRef = cleanSpoken.replace(/[\.\?\!\,\s]+/g, '');
 
-        if (isCorrect) {
+        // 일반 평면 거리 방식과 종성 가중치 방식 스냅샷 동시 추출
+        const normalSim = calculatePhoneticSimilarity(cleanSpokenRef, cleanTarget);
+        const weightedSim = calculateWeightedSimilarity(cleanSpokenRef, cleanTarget);
+
+        if (isCorrect || weightedSim >= 0.6) { // 종성 보정 점수가 60% 이상이면 합격 승인
             playSound('correct');
             updateStateUI('final', 'correct');
-            appendEvalResult(cleanSpoken, 1.0, "⭕ 맞아요!");
-            logToStream('Success', `🎯 정답 판정 확정 완수`);
+            appendEvalResult(cleanSpoken, normalSim, weightedSim, "⭕ 맞아요!");
+            logToStream('Success', `🎯 정답 판정 완수 (일반: ${Math.round(normalSim*100)}% / 보정: ${Math.round(weightedSim*100)}%)`);
         } else {
             playSound('incorrect');
             updateStateUI('final', 'incorrect');
-            
-            const cleanTarget = targetWord.replace(/\s+/g, '');
-            const cleanSpokenRef = cleanSpoken.replace(/[\.\?\!\,\s]+/g, '');
-            const similarity = calculatePhoneticSimilarity(cleanSpokenRef, cleanTarget);
-
-            appendEvalResult(cleanSpoken, similarity, "❌ 아니에요.");
-            logToStream('Error', `❌ 채점 결과 최종 불합격 마감: ${Math.round(similarity * 100)}%`);
+            appendEvalResult(cleanSpoken, normalSim, weightedSim, "❌ 아니에요.");
+            logToStream('Error', `❌ 최종 불합격 마감 (보정 점수 미달: ${Math.round(weightedSim * 100)}%)`);
         }
     }
 
@@ -401,15 +404,15 @@
                 const targetWord = document.getElementById("target-word").value.trim();
                 const cleanSpoken = currentTranscript.replace(/[\.\?\!\,\s]+/g, '');
                 const cleanTarget = targetWord.replace(/\s+/g, '');
-                const similarity = calculatePhoneticSimilarity(cleanSpoken, cleanTarget);
 
-                // [3단계 사양] 사용자가 말하는 도중 정답 도달 시 즉시 '띵동' 소리 및 정답 처리 플래그 수립
-                if (similarity >= 0.6) {
+                // 실시간 상태 추적용 대조 점수 계산
+                const normalSim = calculatePhoneticSimilarity(cleanSpoken, cleanTarget);
+                const weightedSim = calculateWeightedSimilarity(cleanSpoken, cleanTarget);
+
+                if (weightedSim >= 0.6) { // 하이패스 정답 조기 도과 기준을 보정형 알고리즘으로 대체
                     hasPassed = true;
-                    playSound('correct'); // 성공 시 즉시 딩동댕 청각 피드백 발동
-                    logToStream('Success', `🎯 말하는 도중 정답 도달 감지! (손떼기 대기)`);
-                    
-                    // 단, 요청에 의해 [손을 떼기 전까지 3행 결과창 덤프 표출은 차단] 처리합니다.
+                    playSound('correct'); 
+                    logToStream('Success', `🎯 [보정 통과] 음성 입력 도중 정답 도달 (일반: ${Math.round(normalSim*100)}% / 보정: ${Math.round(weightedSim*100)}%)`);
                     if (!isPressing) {
                         executeFinalDecision(true);
                     }

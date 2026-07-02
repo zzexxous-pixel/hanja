@@ -460,6 +460,7 @@ function handleVoiceStart(e) {
 
     // [기획 요구사항] 불필요한 300ms 홀드 지연 타이머 찌꺼기 완전 폐기 및 0ms 즉시 시동
     evaluationTargetIndex = index;
+    processingTargetIndex = index; // ➡️ [버그 수정] 비동기 결과 리스너와의 동기화를 위해 핵심 타겟 인덱스 락인 매립
     latestRawTranscript = "";
 
     const touch = e.touches ? e.touches[0] : e;
