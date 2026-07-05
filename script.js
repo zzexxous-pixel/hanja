@@ -483,7 +483,7 @@ function handleVoiceStart(e) {
     const index = parseInt(cardWrapper.getAttribute('data-index'), 10);
     if (solvedHanjas.has(index)) return; // 시스템 락을 걸기 전에 이미 합격한 한자인지 먼저 검사하여 조기 리턴
 
-    isCardLock = true; // 아직 풀지 않은 정상 카드임이 검증된 후에만 글로벌 시스템 락 작동 
+    isCardLock = true; // 아직 풀지 않은 정상 카드임이 검증된 후에만 글로벌 시스템 락 작동
 
     evaluationTargetIndex = index;
     processingTargetIndex = index; 
