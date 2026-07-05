@@ -4,12 +4,6 @@ const savedHunSize = localStorage.getItem('hun_size') || 17;
 document.documentElement.style.setProperty('--hanja-size', savedHanjaSize + 'px');
 document.documentElement.style.setProperty('--hun-size', savedHunSize + 'px');
 
-// 터치 기기 즉각 발동 유틸리티
-function fastTouch(event, callback) {
-    event.preventDefault();
-    callback();
-}
-
 // === 한글 자모 분해 및 발음 유사도 판정 엔진 알고리즘 ===
 const CHOSUNG = ["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
 const JUNGSEONG = ["ㅏ","ㅐ","ㅑ","ㅒ","ㅓ","ㅔ","ㅕ","ㅖ","ㅗ","ㅘ","ㅙ","ㅚ","ㅛ","ㅜ","ㅝ","ㅞ","ㅟ","ㅠ","ㅡ","ㅢ","ㅣ"];
@@ -836,14 +830,18 @@ window.onload = function() {
                     delete forcedTimeoutTimers[key];
                 });
 
-                for (let i = 0; i < hanjaData.length; i++) {
-                    updateCardUIState(i, 'idle');
-                    const targetTab = Math.floor(i / 100) + 1;
-                    if (tabCache[targetTab]) {
-                        const cell = tabCache[targetTab].querySelector(`.hanja-card-wrapper[data-index="${i}"]`);
-                        if (cell) cell.classList.remove('card-final-correct', 'card-final-incorrect');
-                        const textSpan = tabCache[targetTab].querySelector(`#hun-text-${i}`);
-                        if (textSpan) textSpan.classList.remove('solved');
+                // 🔥 저사양 하드웨어 가속: 600번의 인덱스 순회 및 개별 DOM 검색을 제거하고 브라우저 네이티브 배치 클리어 가동
+                for (let t = 1; t <= 6; t++) {
+                    if (tabCache[t]) {
+                        tabCache[t].querySelectorAll('.hanja-card-wrapper').forEach(cell => {
+                            cell.classList.remove('card-final-correct', 'card-final-incorrect');
+                            const idx = cell.getAttribute('data-index');
+                            const statusLabel = cell.querySelector('.card-status-label');
+                            if (statusLabel) statusLabel.innerHTML = `#${parseInt(idx, 10) + 1}`;
+                        });
+                        tabCache[t].querySelectorAll('.quiz-blur-target').forEach(span => {
+                            span.classList.remove('solved');
+                        });
                     }
                 }
                 switchTab(activeTab);
