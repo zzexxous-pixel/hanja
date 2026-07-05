@@ -471,18 +471,19 @@ function executeFinalJudgment(index, isCorrect) {
 
 function handleVoiceStart(e) {
     if (!isQuizMode) return; 
-    if (isCardLock) return; 
+    if (isCardLock) return; // 이전 카드의 판정이 끝나지 않았다면 다다닥 연타 입력을 원천 무시 차단
 
+    // 중간 한자 영역 가로 전체([data-action="open-modal"])를 터치했는지 정밀 판단
     const hanjaZone = e.target.closest('[data-action="open-modal"]');
     if (!hanjaZone) return; 
     
-    isCardLock = true;
-
     const cardWrapper = hanjaZone.closest('.hanja-card-wrapper');
     if (!cardWrapper) return;
     
     const index = parseInt(cardWrapper.getAttribute('data-index'), 10);
-    if (solvedHanjas.has(index)) return;
+    if (solvedHanjas.has(index)) return; // 시스템 락을 걸기 전에 이미 합격한 한자인지 먼저 검사하여 조기 리턴
+
+    isCardLock = true; // 아직 풀지 않은 정상 카드임이 검증된 후에만 글로벌 시스템 락 작동
 
     evaluationTargetIndex = index;
     processingTargetIndex = index; 
