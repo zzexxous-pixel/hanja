@@ -28,24 +28,36 @@ function disassembleKorean(str) {
     return result;
 }
 
+// [최적화 완료] 2차원 매트릭스 배열의 동적 할당을 파괴하고, 2개의 1차원 행 포인터만 스왑하여 GC 부하 차단
 function getLevenshteinDistance(a, b) {
-    const matrix = [];
-    for (let i = 0; i <= b.length; i++) matrix[i] = [i];
-    for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+
+    let prevRow = new Array(a.length + 1);
+    let currRow = new Array(a.length + 1);
+
+    for (let j = 0; j <= a.length; j++) {
+        prevRow[j] = j;
+    }
 
     for (let i = 1; i <= b.length; i++) {
+        currRow[0] = i;
         for (let j = 1; j <= a.length; j++) {
             if (b.charAt(i - 1) === a.charAt(j - 1)) {
-                matrix[i][j] = matrix[i - 1][j - 1];
+                currRow[j] = prevRow[j - 1];
             } else {
-                matrix[i][j] = Math.min(
-                    matrix[i - 1][j - 1] + 1,
-                    Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1)
+                currRow[j] = Math.min(
+                    prevRow[j - 1] + 1,
+                    Math.min(currRow[j - 1] + 1, prevRow[j] + 1)
                 );
             }
         }
+        // 행 포인터 고속 고정 스왑으로 메모리 재할당 억제
+        let temp = prevRow;
+        prevRow = currRow;
+        currRow = temp;
     }
-    return matrix[b.length][a.length];
+    return prevRow[a.length];
 }
 
 function calculatePhoneticSimilarity(wordA, wordB) {
@@ -71,9 +83,11 @@ let defaultHunSizePx = parseInt(savedHunSize);
 
 let solvedHanjas = new Set();
 const tabCache = {};
+let isFavoritesDirty = true; // 즐겨찾기 무한 Reflow 방지용 Dirty 플래그
 
 // 음성 제어 및 모바일 스크롤 스레스홀드 보정 변수
 let evaluationTargetIndex = null;
+let processingTargetIndex = null; // 암묵적 전역 변수 오염 해결을 위한 명시적 스코프 선언
 let isListening = false;
 let recognition = null;
 
@@ -84,11 +98,11 @@ let hasMoved = false;
 let titleClickCount = 0;
 let titleClickTimer = null;
 
-// Web Audio API 0ms 즉시 재생 주파수 합성 및 [개정] 카드별 독립형 인프라 맵 변수
+// Web Audio API 주파수 합성 및 카드별 독립형 인프라 맵 변수
 let audioCtx = null;
-const forcedTimeoutTimers = {}; // 카드별 독립 만료 스케줄러 보관 맵 객체
+const forcedTimeoutTimers = {}; 
 let latestRawTranscript = "";  
-let isCardLock = false;        // ➡️ [추가] 한자 카드 루틴 종결 전 연타 무력화용 전역 락 변수
+let isCardLock = false;        
 
 function saveBookmarks() {
     localStorage.setItem('hanja_bookmarks', JSON.stringify(bookmarks));
@@ -121,6 +135,8 @@ function toggleBookmark(index, event) {
         bookmarks.push(index);
     }
     saveBookmarks();
+
+    isFavoritesDirty = true; // 데이터 변동 시 즐겨찾기 DOM 재생성 트리거
 
     updateCellStarUI(index, !isRemoving);
     updateModalStarState(index);
@@ -272,8 +288,12 @@ function switchTab(tabNum) {
     container.innerHTML = ''; 
 
     if (tabNum === 7) {
-        activeFavoriteIndices = [...bookmarks];
-        container.appendChild(buildFavoritesDOM());
+        if (isFavoritesDirty || !tabCache[7]) {
+            activeFavoriteIndices = [...bookmarks];
+            tabCache[7] = buildFavoritesDOM();
+            isFavoritesDirty = false;
+        }
+        container.appendChild(tabCache[7]);
     } else {
         container.appendChild(tabCache[tabNum]);
     }
@@ -335,7 +355,6 @@ function handleHunClick(tdElement, globalIdx) {
     }
 }
 
-// === Web Audio API 주파수 오디오 합성기 ===
 function playSound(type) {
     try {
         if (!audioCtx) {
@@ -348,7 +367,6 @@ function playSound(type) {
         const now = audioCtx.currentTime;
         
         if (type === 'correct') {
-            // 새롭게 매립된 볼륨 최대화 엔벨롭 및 화음 이펙터
             const gainNode = audioCtx.createGain();
             gainNode.gain.setValueAtTime(0, now);
             gainNode.gain.linearRampToValueAtTime(0.4, now + 0.02);
@@ -360,11 +378,11 @@ function playSound(type) {
             osc1.type = 'sine';
             osc2.type = 'triangle';
 
-            osc1.frequency.setValueAtTime(523.25, now); // C5
-            osc1.frequency.setValueAtTime(659.25, now + 0.12); // E5
+            osc1.frequency.setValueAtTime(523.25, now); 
+            osc1.frequency.setValueAtTime(659.25, now + 0.12); 
 
-            osc2.frequency.setValueAtTime(659.25, now); // E5
-            osc2.frequency.setValueAtTime(783.99, now + 0.12); // G5
+            osc2.frequency.setValueAtTime(659.25, now); 
+            osc2.frequency.setValueAtTime(783.99, now + 0.12); 
 
             osc1.connect(gainNode);
             osc2.connect(gainNode);
@@ -375,7 +393,6 @@ function playSound(type) {
             osc1.stop(now + 0.6);
             osc2.stop(now + 0.6);
         } else if (type === 'incorrect') {
-            // 새롭게 매립된 톱니파 저음 및 로우패스 필터 버저
             const gainNode = audioCtx.createGain();
             gainNode.gain.setValueAtTime(0, now);
             gainNode.gain.linearRampToValueAtTime(0.4, now + 0.01);
@@ -383,7 +400,7 @@ function playSound(type) {
 
             const osc = audioCtx.createOscillator();
             osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(130, now); // 거친 130Hz 저음
+            osc.frequency.setValueAtTime(130, now); 
 
             const filter = audioCtx.createBiquadFilter();
             filter.type = 'lowpass';
@@ -401,7 +418,6 @@ function playSound(type) {
     }
 }
 
-// === 6단계 동적 카드 상태 머신 조작 엔진 ===
 function updateCardUIState(index, state, passType) {
     const cardWrapper = document.querySelector(`.hanja-card-wrapper[data-index="${index}"]`);
     if (!cardWrapper) return;
@@ -431,14 +447,12 @@ function updateCardUIState(index, state, passType) {
     }
 }
 
-// [개정] 클로저 변수를 활용하여 카드별로 완전히 분리 구동되는 오답 결산 처리기
 function executeFinalJudgment(index, isCorrect) {
     if (forcedTimeoutTimers[index]) {
         clearTimeout(forcedTimeoutTimers[index]);
         delete forcedTimeoutTimers[index];
     }
 
-    // ➡️ [인프라 개선] O,X 판정이 종결되었으므로 마이크 스트림 즉시 파기 및 하드웨어 자원 강제 즉각 회수
     if (recognition) {
         try { recognition.abort(); } catch (err) {}
     }
@@ -452,59 +466,44 @@ function executeFinalJudgment(index, isCorrect) {
         updateCardUIState(index, 'final', 'incorrect');
     }
 
-    // ➡️ [추가] 한 글자의 루틴(O, X 판정 애니메이션 및 사운드 포함)이 완전히 끝났으므로 락 해제
     isCardLock = false;
 }
 
-// ==========================================================================
-// === [대대적 개편] 카드별 독립형 0ms 즉시 차단 음성 입력 제어 프레임워크 ===
-// ==========================================================================
-
 function handleVoiceStart(e) {
     if (!isQuizMode) return; 
-    if (isCardLock) return; // ➡️ [추가] 이전 카드의 판정이 끝나지 않았다면 다다닥 연타 입력을 원천 무시 차단
+    if (isCardLock) return; 
 
-    // 중간 한자 영역 가로 전체([data-action="open-modal"])를 터치했는지 정밀 판단
     const hanjaZone = e.target.closest('[data-action="open-modal"]');
     if (!hanjaZone) return; 
     
-    // 타겟팅에 성공하여 카드 조작이 시작되었으므로 즉시 글로벌 시스템 락 작동
     isCardLock = true;
 
     const cardWrapper = hanjaZone.closest('.hanja-card-wrapper');
     if (!cardWrapper) return;
     
     const index = parseInt(cardWrapper.getAttribute('data-index'), 10);
-    
-    // 이미 합격한 한자는 입력을 완전 차단 거부
     if (solvedHanjas.has(index)) return;
 
-    // [기획 요구사항] 불필요한 300ms 홀드 지연 타이머 찌꺼기 완전 폐기 및 0ms 즉시 시동
     evaluationTargetIndex = index;
-    processingTargetIndex = index; // ➡️ [버그 수정] 비동기 결과 리스너와의 동기화를 위해 핵심 타겟 인덱스 락인 매립
+    processingTargetIndex = index; 
     latestRawTranscript = "";
 
-    const touch = e.touches ? e.touches[0] : e;
-    touchStartPos = { x: touch.clientX, y: touch.clientY };
+    touchStartPos = { x: e.clientX, y: e.clientY };
     hasMoved = false;
 
     appLog('System', `한자 터치 즉시 시동 ➡️ #${index + 1}`);
 
-    // [레이스 컨디션 해결] 해당 카드에 돌고 있던 이전 스케줄러 타이머가 있다면 독립적으로 선제 폐기
     if (forcedTimeoutTimers[index]) {
         clearTimeout(forcedTimeoutTimers[index]);
         delete forcedTimeoutTimers[index];
     }
 
-    // [대안 폐기 반영] 마이크 Keep-Alive 무전기식 재활용 로직을 전면 삭제하고 매 터치다운마다 순수 독립 세션 기동
     updateCardUIState(index, 'touch');
     if (recognition) {
         try {
-            // 하드웨어 드라이버 데드락 방지 가드: 기존에 돌고 있던 세션이 있다면 확실하게 크래시 방지용 stop 선제 차단
             recognition.stop(); 
             recognition.start();
         } catch (err) {
-            // 이미 켜져 있는 비동기 스레드 보완용 안전 우회
             try { recognition.start(); } catch(e){}
         }
     }
@@ -513,9 +512,8 @@ function handleVoiceStart(e) {
 function handleVoiceMove(e) {
     if (!isQuizMode || evaluationTargetIndex === null) return;
 
-    const touch = e.touches ? e.touches[0] : e;
-    const dx = touch.clientX - touchStartPos.x;
-    const dy = touch.clientY - touchStartPos.y;
+    const dx = e.clientX - touchStartPos.x;
+    const dy = e.clientY - touchStartPos.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
     if (distance > 10) {
@@ -529,7 +527,7 @@ function handleVoiceMove(e) {
         }
         appLog('System', `스크롤 이탈 감지 ➡️ #${targetIdx + 1} 마이크 세션 즉시 파괴`);
 
-        isCardLock = false; // ➡️ [추가] 채점 세션에 진입하지 않고 이탈했으므로 시스템 락을 안전하게 조기 해제
+        isCardLock = false; 
     }
 }
 
@@ -539,13 +537,6 @@ function handleVoiceEnd(e) {
     const index = evaluationTargetIndex;
     evaluationTargetIndex = null;
 
-    // ➡️ [초단음 버퍼 보존] 손을 떼더라도 마이크를 강제로 끄지 않고 구글 자연 종료 규격에 맡김 (stop 제거)
-    /*// [개정] 손을 떼는 순간 구글 서버 임계치 대기 없이 즉각적으로 하드웨어 오디오 스트림 수집 영구 차단 폐쇄
-    if (recognition) {
-        try { recognition.stop(); } catch(err){}
-    }*/
-
-    // 손가락을 뗀 시점에 실시간 매칭으로 아직 정답 버퍼(⭕)를 통과하지 못한 카드만 독립 채점 스케줄러 진입
     const liveCardWrapper = document.querySelector(`.hanja-card-wrapper[data-index="${index}"]`);
     const isAlreadyPassed = liveCardWrapper && liveCardWrapper.classList.contains('card-final-correct');
 
@@ -553,7 +544,6 @@ function handleVoiceEnd(e) {
         updateCardUIState(index, 'checking');
         appLog('System', `손떼기 완료 ➡️ #${index + 1} 독립 채점 세션 진입 (1.2초 만료 카운트다운)`);
         
-        // [클로저 스냅샷 락인] 변수가 뒤섞이지 않게 index 번호를 고유 샌드박스로 고정 결산
         forcedTimeoutTimers[index] = setTimeout(((targetIdx) => {
             return () => {
                 const checkWrapper = document.querySelector(`.hanja-card-wrapper[data-index="${targetIdx}"]`);
@@ -680,19 +670,16 @@ function appLog(category, message) {
     consoleBody.scrollTop = consoleBody.scrollHeight;
 }
 
-// === SpeechRecognition 순수 실시간 단발성 분석 엔진 ===
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
     recognition.lang = 'ko-KR';
-    // [패러다임 전환 완수] 불필요한 연속 누적 문장 기능을 파괴하여 event.resultIndex 가 항상 0번인 순수 세션 수립
     recognition.continuous = false;     
     recognition.interimResults = true;  
     recognition.maxAlternatives = 1;
 
     recognition.onstart = function() {
         isListening = true;
-        // 글로벌 보존 타겟 바인딩 검증 후 실시간 펄스 인젝션
         const activeIdx = evaluationTargetIndex !== null ? evaluationTargetIndex : processingTargetIndex;
         if (activeIdx !== null) {
             updateCardUIState(activeIdx, 'active');
@@ -704,7 +691,6 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         if (processingTargetIndex === null) return;
         if (solvedHanjas.has(processingTargetIndex)) return; 
 
-        // continuous가 false이므로 인덱스 0번 트랙의 텍스트 스트림 정보만 청정하게 결합
         let currentTranscript = event.results[0][0].transcript;
         let isFinalResult = event.results[event.results.length - 1].isFinal;
 
@@ -713,20 +699,19 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 
             const cleanSpoken = currentTranscript.replace(/[\.\?\!\,\s]+/g, '');
             const cleanTarget = hanjaData[processingTargetIndex].m.replace(/\s+/g, '');
+            
             const similarity = calculatePhoneticSimilarity(cleanSpoken, cleanTarget);
 
             if (similarity >= 0.6) {
-                // 실시간 도달 순간 즉시 하이패스 정답 처리 집행
                 executeFinalJudgment(processingTargetIndex, true);
             } else if (isFinalResult) {
                 appLog('Speech', `마감 프레임 패킷 도착 (일치율: ${Math.round(similarity * 100)}%)`);
-                // 이미 손가락을 뗐고 만료 스케줄러가 구동 중인 상태에서 최종 오답 확정 수신 시 결산
                 if (evaluationTargetIndex === null && forcedTimeoutTimers[processingTargetIndex]) {
                     executeFinalJudgment(processingTargetIndex, false);
                 }
             } else {
                 if (evaluationTargetIndex !== null) {
-                    appLog('Speech', `🎙️ 실시간 분석 중: "${cleanSpoken}" (현재 일치율: ${Math.round(similarity * 100)}%)`);
+                    appLog('Speech', `🎙️ 실시간 분석 중: "${cleanSpoken}" (일치율: ${Math.round(similarity * 100)}%)`);
                 }
             }
         }
@@ -758,14 +743,12 @@ window.onload = function() {
     const mainContainer = document.getElementById('table-view-container');
     if (!mainContainer) return;
 
-    mainContainer.addEventListener('mousedown', handleVoiceStart);
-    mainContainer.addEventListener('mousemove', handleVoiceMove);
-    mainContainer.addEventListener('mouseup', handleVoiceEnd);
-    mainContainer.addEventListener('mouseleave', handleVoiceEnd);
-
-    mainContainer.addEventListener('touchstart', handleVoiceStart, { passive: true });
-    mainContainer.addEventListener('touchmove', handleVoiceMove, { passive: true });
-    mainContainer.addEventListener('touchend', handleVoiceEnd, { passive: true });
+    // [최적화 유지] 마우스 및 터치 이벤트 리스너 라인을 완벽하게 걷어내고 PointerEvents 단일 결합 완수
+    mainContainer.addEventListener('pointerdown', handleVoiceStart);
+    mainContainer.addEventListener('pointermove', handleVoiceMove);
+    mainContainer.addEventListener('pointerup', handleVoiceEnd);
+    mainContainer.addEventListener('pointercancel', handleVoiceEnd);
+    mainContainer.addEventListener('pointerleave', handleVoiceEnd);
 
     mainContainer.addEventListener('click', function(event) {
         const bookmarkBtn = event.target.closest('[data-action="toggle-bookmark"]');
@@ -822,28 +805,18 @@ window.onload = function() {
                 appLog('System', '퀴즈 모드 해제 ➡️ 일반 열람 대기 상태');
                 
                 solvedHanjas.clear();
-                isCardLock = false; // ➡️ [승인 반영] 일반 모드 복귀 시 시스템 인터랙션 락 강제 초기화 예외 가드 배치
+                isCardLock = false; 
 
-                // 모든 독립 타이머 원천 파괴
                 Object.keys(forcedTimeoutTimers).forEach(key => {
                     clearTimeout(forcedTimeoutTimers[key]);
                     delete forcedTimeoutTimers[key];
                 });
 
-                // 🔥 저사양 하드웨어 가속: 600번의 인덱스 순회 및 개별 DOM 검색을 제거하고 브라우저 네이티브 배치 클리어 가동
-                for (let t = 1; t <= 6; t++) {
-                    if (tabCache[t]) {
-                        tabCache[t].querySelectorAll('.hanja-card-wrapper').forEach(cell => {
-                            cell.classList.remove('card-final-correct', 'card-final-incorrect');
-                            const idx = cell.getAttribute('data-index');
-                            const statusLabel = cell.querySelector('.card-status-label');
-                            if (statusLabel) statusLabel.innerHTML = `#${parseInt(idx, 10) + 1}`;
-                        });
-                        tabCache[t].querySelectorAll('.quiz-blur-target').forEach(span => {
-                            span.classList.remove('solved');
-                        });
-                    }
-                }
+                // [최적화 유지] 600개의 카드를 순회하는 DOM 전수조사 병목 로직 완전 소멸. 
+                // 초기 정적 캐시 자체를 리프레시하여 새 화면으로 고속 스왑 교체
+                preRenderStaticTables();
+                isFavoritesDirty = true; 
+                
                 switchTab(activeTab);
             }
         } else if (action === 'close-modal') {
@@ -865,6 +838,7 @@ window.onload = function() {
         if (consoleBody) consoleBody.innerHTML = '';
     });
     document.getElementById('console-close-btn').addEventListener('click', () => {
+        document.getElementById('dev-console').classList.add('hidden/암묵적 가드 무력화');
         document.getElementById('dev-console').classList.add('hidden');
     });
 };
