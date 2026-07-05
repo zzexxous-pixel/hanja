@@ -28,7 +28,7 @@ function disassembleKorean(str) {
     return result;
 }
 
-// [최적화 완료] 2차원 매트릭스 배열의 동적 할당을 파괴하고, 2개의 1차원 행 포인터만 스왑하여 GC 부하 차단
+// [최적화 완료] 2차원 매트릭스 배열의 동적 할당을 파괴하고, 2개의 1차원 행 포인터만 스왑하여 GC 부하 차단 
 function getLevenshteinDistance(a, b) {
     if (a.length === 0) return b.length;
     if (b.length === 0) return a.length;
