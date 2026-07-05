@@ -94,6 +94,7 @@ let titleClickTimer = null;
 let audioCtx = null;
 const forcedTimeoutTimers = {}; // 카드별 독립 만료 스케줄러 보관 맵 객체
 let latestRawTranscript = "";  
+let isCardLock = false;        // ➡️ [추가] 한자 카드 루틴 종결 전 연타 무력화용 전역 락 변수
 
 function saveBookmarks() {
     localStorage.setItem('hanja_bookmarks', JSON.stringify(bookmarks));
@@ -437,6 +438,9 @@ function executeFinalJudgment(index, isCorrect) {
         playSound('incorrect');
         updateCardUIState(index, 'final', 'incorrect');
     }
+
+    // ➡️ [추가] 한 글자의 루틴(O, X 판정 애니메이션 및 사운드 포함)이 완전히 끝났으므로 락 해제
+    isCardLock = false;
 }
 
 // ==========================================================================
@@ -445,11 +449,15 @@ function executeFinalJudgment(index, isCorrect) {
 
 function handleVoiceStart(e) {
     if (!isQuizMode) return; 
+    if (isCardLock) return; // ➡️ [추가] 이전 카드의 판정이 끝나지 않았다면 다다닥 연타 입력을 원천 무시 차단
 
     // 중간 한자 영역 가로 전체([data-action="open-modal"])를 터치했는지 정밀 판단
     const hanjaZone = e.target.closest('[data-action="open-modal"]');
     if (!hanjaZone) return; 
     
+    // 타겟팅에 성공하여 카드 조작이 시작되었으므로 즉시 글로벌 시스템 락 작동
+    isCardLock = true;
+
     const cardWrapper = hanjaZone.closest('.hanja-card-wrapper');
     if (!cardWrapper) return;
     
@@ -507,6 +515,8 @@ function handleVoiceMove(e) {
             try { recognition.stop(); } catch(err){}
         }
         appLog('System', `스크롤 이탈 감지 ➡️ #${targetIdx + 1} 마이크 세션 즉시 파괴`);
+
+        isCardLock = false; // ➡️ [추가] 채점 세션에 진입하지 않고 이탈했으므로 시스템 락을 안전하게 조기 해제
     }
 }
 
@@ -799,6 +809,8 @@ window.onload = function() {
                 appLog('System', '퀴즈 모드 해제 ➡️ 일반 열람 대기 상태');
                 
                 solvedHanjas.clear();
+                isCardLock = false; // ➡️ [승인 반영] 일반 모드 복귀 시 시스템 인터랙션 락 강제 초기화 예외 가드 배치
+                
                 // 모든 독립 타이머 원천 파괴
                 Object.keys(forcedTimeoutTimers).forEach(key => {
                     clearTimeout(forcedTimeoutTimers[key]);
