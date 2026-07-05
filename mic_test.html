@@ -237,27 +237,53 @@
             const now = audioCtx.currentTime;
             
             if (type === 'correct') {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(523.25, now); 
-                osc.frequency.setValueAtTime(659.25, now + 0.08); 
-                gain.gain.setValueAtTime(0.15, now);
-                gain.gain.exponentialRampToValueAtTime(0.005, now + 0.25);
-                osc.connect(gain); gain.connect(audioCtx.destination);
-                osc.start(now); osc.stop(now + 0.25);
-            } else if (type === 'incorrect') {
-                const osc1 = audioCtx.createOscillator(); const gain1 = audioCtx.createGain();
-                osc1.type = 'triangle'; osc1.frequency.setValueAtTime(160, now);
-                gain1.gain.setValueAtTime(0.2, now); gain1.gain.exponentialRampToValueAtTime(0.005, now + 0.07);
-                osc1.connect(gain1); gain1.connect(audioCtx.destination);
-                osc1.start(now); osc1.stop(now + 0.08);
+                // 검증 컴포넌트용 정답 화음 디자인 싱크 완료
+                const gainNode = audioCtx.createGain();
+                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.linearRampToValueAtTime(0.4, now + 0.02);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
 
-                const osc2 = audioCtx.createOscillator(); const gain2 = audioCtx.createGain();
-                osc2.type = 'triangle'; osc2.frequency.setValueAtTime(160, now + 0.1);
-                gain2.gain.setValueAtTime(0.2, now + 0.1); gain2.gain.exponentialRampToValueAtTime(0.005, now + 0.17);
-                osc2.connect(gain2); gain2.connect(audioCtx.destination);
-                osc2.start(now + 0.1); osc2.stop(now + 0.18);
+                const osc1 = audioCtx.createOscillator();
+                const osc2 = audioCtx.createOscillator();
+                
+                osc1.type = 'sine';
+                osc2.type = 'triangle';
+
+                osc1.frequency.setValueAtTime(523.25, now);
+                osc1.frequency.setValueAtTime(659.25, now + 0.12);
+
+                osc2.frequency.setValueAtTime(659.25, now);
+                osc2.frequency.setValueAtTime(783.99, now + 0.12);
+
+                osc1.connect(gainNode);
+                osc2.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                osc1.start(now);
+                osc2.start(now);
+                osc1.stop(now + 0.6);
+                osc2.stop(now + 0.6);
+            } else if (type === 'incorrect') {
+                // 검증 컴포넌트용 톱니파 필터 버저 싱크 완료
+                const gainNode = audioCtx.createGain();
+                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.linearRampToValueAtTime(0.4, now + 0.01);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+                const osc = audioCtx.createOscillator();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(130, now);
+
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(1200, now);
+
+                osc.connect(filter);
+                filter.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.5);
             }
         } catch (err) {
             console.error("오디오 합성 오류:", err);

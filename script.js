@@ -354,39 +354,53 @@ function playSound(type) {
         const now = audioCtx.currentTime;
         
         if (type === 'correct') {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(523.25, now); 
-            osc.frequency.setValueAtTime(659.25, now + 0.1); 
-            gain.gain.setValueAtTime(0.2, now);
-            gain.gain.exponentialRampToValueAtTime(0.005, now + 0.3);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start(now);
-            osc.stop(now + 0.3);
-        } else if (type === 'incorrect') {
-            const osc1 = audioCtx.createOscillator();
-            const gain1 = audioCtx.createGain();
-            osc1.type = 'triangle';
-            osc1.frequency.setValueAtTime(160, now);
-            gain1.gain.setValueAtTime(0.25, now);
-            gain1.gain.exponentialRampToValueAtTime(0.005, now + 0.08);
-            osc1.connect(gain1);
-            gain1.connect(audioCtx.destination);
-            osc1.start(now);
-            osc1.stop(now + 0.09);
+            // 새롭게 매립된 볼륨 최대화 엔벨롭 및 화음 이펙터
+            const gainNode = audioCtx.createGain();
+            gainNode.gain.setValueAtTime(0, now);
+            gainNode.gain.linearRampToValueAtTime(0.4, now + 0.02);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
 
+            const osc1 = audioCtx.createOscillator();
             const osc2 = audioCtx.createOscillator();
-            const gain2 = audioCtx.createGain();
+            
+            osc1.type = 'sine';
             osc2.type = 'triangle';
-            osc2.frequency.setValueAtTime(160, now + 0.11);
-            gain2.gain.setValueAtTime(0.25, now + 0.11);
-            gain2.gain.exponentialRampToValueAtTime(0.005, now + 0.19);
-            osc2.connect(gain2);
-            gain2.connect(audioCtx.destination);
-            osc2.start(now + 0.11);
-            osc2.stop(now + 0.2);
+
+            osc1.frequency.setValueAtTime(523.25, now); // C5
+            osc1.frequency.setValueAtTime(659.25, now + 0.12); // E5
+
+            osc2.frequency.setValueAtTime(659.25, now); // E5
+            osc2.frequency.setValueAtTime(783.99, now + 0.12); // G5
+
+            osc1.connect(gainNode);
+            osc2.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            osc1.start(now);
+            osc2.start(now);
+            osc1.stop(now + 0.6);
+            osc2.stop(now + 0.6);
+        } else if (type === 'incorrect') {
+            // 새롭게 매립된 톱니파 저음 및 로우패스 필터 버저
+            const gainNode = audioCtx.createGain();
+            gainNode.gain.setValueAtTime(0, now);
+            gainNode.gain.linearRampToValueAtTime(0.4, now + 0.01);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+            const osc = audioCtx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(130, now); // 거친 130Hz 저음
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(1200, now);
+
+            osc.connect(filter);
+            filter.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            osc.start(now);
+            osc.stop(now + 0.5);
         }
     } catch (err) {
         console.error("오디오 노드 합성 장애:", err);
@@ -810,7 +824,7 @@ window.onload = function() {
                 
                 solvedHanjas.clear();
                 isCardLock = false; // ➡️ [승인 반영] 일반 모드 복귀 시 시스템 인터랙션 락 강제 초기화 예외 가드 배치
-                
+
                 // 모든 독립 타이머 원천 파괴
                 Object.keys(forcedTimeoutTimers).forEach(key => {
                     clearTimeout(forcedTimeoutTimers[key]);
