@@ -1,204 +1,74 @@
-# **4급 한자 마스터 (4급 한자 학습 플랫폼) 기능 명세서**
+# 📋 기능 명세서 (Functional Specification)
 
-**Functional Specification & QA Test Guide (v1.2.0)**
+본 플랫폼은 한국어문회 4급 배정한자(600자)를 효율적으로 학습하고, 웹 표준 기술을 활용하여 저사양 모바일/태블릿 환경에서도 끊김 없는 음성 인식 자가 테스트를 수행할 수 있도록 설계된 Vanilla JS 기반 웹 애플리케이션입니다.
 
-본 명세서는 "4급 한자 마스터" 플랫폼의 프론트엔드 아키텍처, 사용자 인터페이스(UI), 사용자 경험(UX), 제스처 인터랙션 인터페이스, 자모 분해 음성 인식 평가 엔진 및 디버그 모듈에 대한 최종 기능 명세를 다룹니다. 본 문서는 향후 시스템 확장 개발과 블랙박스/화이트박스 기능 테스트의 표준 준거 가이드라인으로 활용됩니다.
+---
 
-## **1\. 시스템 개요 및 아키텍처 (System Architecture)**
+## 1. 아키텍처 및 핵심 가동 엔진
 
-* **구동 환경**: Serverless 및 No-Framework 기반의 독립형 SPA (Single Page Application).  
-* **기술 스택**: HTML5, CSS3, ES6+ JavaScript, Tailwind CSS (Utility-First), Font Awesome 6.4.0.  
-* **서체 바인딩**: LXGW WenKai TC (정체 한자 가독성 우선 순위), Noto Sans KR (기본 한글 서체).  
-* **데이터 보존**: 브라우저 로컬 스토리지(localStorage) 동기화.  
-  * hanja\_bookmarks: 즐겨찾기 등록된 한자의 전역 인덱스 배열 (JSON.stringify 포맷).  
-  * hanja\_size / hun\_size: 사용자가 변경한 동적 한자/훈음 크기 변수 (단위: 픽셀).
+### 1) 선행 렌더링 및 레이아웃 캐시 시스템 (Prerender & Cache)
 
-## **2\. 레이아웃 및 UI 컴포넌트 명세 (UI Components)**
+* **정적 캐시 구조:** 애플리케이션 부팅 시 1페이지부터 6페이지까지(페이지당 100자)의 HTML 그리드 컨테이너를 인메모리 DOM 노드로 미리 컴파일하여 `tabCache` 객체에 상주시키고 관리합니다.
+* **화면 고속 스왑:** 탭 전환 또는 퀴즈 모드 토글 시 무거운 문자열 파싱과 DOM 전수조사를 전면 배제하고, 캐싱된 DOM 노드를 통째로 교체 부착(Append)함으로써 저사양 하드웨어의 화면 프리징을 차단합니다.
 
-### **2.1 상단 고정형 헤더 (Sticky Header)**
+### 2) 메모리 최적화 자모 분해 유사도 판정 알고리즘
 
-* **속성**: 화면 상단 고정 (sticky top-0 z-40), 배경 그라디언트 및 섀도우 효과 탑재.  
-* **반응형 그리드 시스템 (responsive-header)**:  
-  * **모바일 환경 (Width \< 768px)**: 2행(Row) 구조 배치.  
-    * 1행: 타이틀(좌) / 글꼴 크기 변경 조작계(우)  
-    * 2행: 페이지네이션 및 즐겨찾기(좌) / 훈음 가리기 토글(우)  
-  * **태블릿 및 데스크톱 환경 (Width** ![][image1] **768px)**: 단일 1행 수평 극대화 정렬 구조 유지.  
-* **세부 구성 조작계**:  
-  1. **타이틀 영역 (header-title)**:  
-     * 마우스 오버 시 링크로 오해하지 않도록 일반 화살표 유지 (cursor-default).  
-     * **비밀 디버그 이스터에그 트리거** 탑재 (연속 5회 연타 시 개발 콘솔 활성화).  
-  2. **글꼴 크기 제어기 (header-fontsize)**:  
-     * A / A 데코레이션 텍스트 및 조작 버튼 2개(-, \+) 제공.  
-     * 버튼 터치 시 모바일 300ms 딜레이를 차단하는 fastTouch(event, callback) 유틸리티 바인딩 적용.  
-       * fastTouch는 호출 시 즉시 내부 callback() 인스턴스를 무결하게 실행하여 모바일 터치 접근성을 보증한다.  
-     * 글자 크기 변동 단위: 클릭/터치당 한자 3px 단위 증감, 훈음 1px 단위 증감.  
-     * 최소/최대 한자 크기 임계값: ![][image2] (기본 ![][image3]).  
-     * 최소/최대 훈음 크기 임계값: ![][image4] (기본 ![][image5]).  
-  3. **콤팩트 페이저 (pager-wrapper)**:  
-     * 좌우 조작 삼각형 캐럿 버튼(btn-prev-page, btn-next-page) 및 현 페이지 인디케이터(page-indicator, 예: 1 / 6\) 구성.  
-     * **즐겨찾기 탭(7번) 활성화 시**: 페이저 영역 반투명화(opacity-50) 및 조작 차단(pointer-events-none), 인디케이터 표기를 ★ / 6으로 자동 변경.  
-  4. **즐겨찾기 토글 (tab-7)**:  
-     * 별표(★) 모양 아이콘으로 구성된 단일 아이콘 컴포넌트.  
-     * 활성화 시 선명한 노란색 테두리 및 그림자 효과로 전면 강조 처리.  
-  5. **자가 테스트 토글 (btn-toggle-quiz)**:  
-     * 고정 너비 w-28 규격 준수. 활성/비활성 여부와 상관없이 가로 너비가 일정하여 레이아웃 흔들림을 원천 방지한다.  
-     * **일반 모드**: 배경색 노란색(bg-yellow-500), 레이블 "훈음 가리기", 아이콘 fa-eye-slash.  
-     * **퀴즈 모드**: 배경색 초록색(bg-emerald-600), 레이블 "훈음 보이기", 아이콘 fa-eye.
+* **음소 구조 분해:** 입력된 한글 문자열의 유니코드 명세 영역(44032 ~ 55203)을 판정하여 초성, 중성, 종성 배열 문자열로 완전 분해하는 `disassembleKorean` 엔진을 탑재하고 있습니다.
+* **공간 복잡도 O(N) Levenshtein Distance:** 실시간 음성 수집 중 발생하는 메모리 가비지 컬렉션(GC) 부하를 방어하기 위해, 기존의 2차원 매트릭스 할당 방식을 폐기하고 단 2개의 1차원 행 배열(`prevRow`, `currRow`) 포인터만 스왑하는 최적화 편집 거리 연산을 수행합니다.
+* **판정 기준:** 공백 및 문장 부호가 제거된 음성 인식 텍스트와 정답 훈음 텍스트 간의 자모 유사도가 60% 이상(>= 0.6)일 경우 즉시 합격 판정을 내립니다.
 
-### **2.2 메인 한자 그리드 영역 (hanja-responsive-grid)**
+---
 
-* **그리드 정렬**: CSS Grid 가변 제어 적용.![][image6]  
-* **한자 카드 셀 구성**:  
-  * **좌측 상단 (메타 데이터)**: 한자 번호 레이블(예: \#1) 표시.  
-    * **음성 인식 녹음 활성화 시**: 한자 번호가 은폐(display: none)되고, 별표와 동일한 스케일 규격인 마이크 아이콘(text-base recording-icon)이 실시간 교체 노출되어 점멸한다.  
-  * **우측 상단 (즐겨찾기 별표)**: 전용 스타 버튼 배치. 누를 시 카드 전체 이벤트 캡처를 방지하는 event.stopPropagation() 작동. 로컬스토리지에 영구 등록/삭제 바인딩.  
-  * **중앙 영역 (한자 폰트)**: LXGW WenKai TC 서체 1순위 출력.  
-  * **하단 영역 (훈음 가림막)**: 가림 효과 연동 타겟(quiz-blur-target).
+## 2. 세부 기능 명세
 
-### **2.3 상세 모달 창 (detail-modal)**
+### 1) 한자 열람 및 상세 학습 모드
 
-* **배경**: 흐림 처리된 반투명 백드롭 필터 적용 (bg-slate-900/60 backdrop-blur-sm hidden).  
-* **애니메이션**: 레이아웃 컴파일 오버헤드를 막기 위해 GPU 레이어에서 구동되는 크기 변이(scale-95 ➡️ scale-100) 및 불투명도 트랜지션 적용.  
-* **컨텐츠 내부 조작계**:  
-  1. **즐겨찾기 스타 버튼**: 상태 실시간 공유 및 활성화 시 선명한 노란색 렌더링.  
-  2. **한자 번호 탭 트리거**: 모달 좌측 상단 \#NO 영역 클릭 시 카드 북마크 즉시 토글 가동.  
-  3. **TTS 재생 버튼 ("훈음 듣기")**: Web Speech API의 내장 TTS 엔진을 호출하여 한글 발음으로 스피킹 출력 (음성 배속: ![][image7]).  
-  4. **네이버 사전 검색 버튼**: 사전 검색 주소로 한자를 디코딩 매핑하여 새 창(\_blank) 호출.  
-* **예외 조치**:  
-  * **모달 닫기**: 우측 상단 닫기 아이콘, 반투명 배경 백드롭 영역 클릭, 키보드 ESC 입력 시 완벽 작동. 모든 트랜지션 및 닫기 연산은 classList 제어 타이밍(setTimeout 300ms)으로 안전하게 구동되어 클래스 유실에 따른 멈춤 예외(TypeError)를 차단한다.
+* **반응형 한자 그리드:** 화면 크기에 유연하게 대응하는 카드 형태의 그리드 레이아웃을 제공합니다.
+* **상세 정보 모달 팝업:** 퀴즈 모드가 아닐 때 한자 카드를 터치하면 인덱스, 한자 본문, 훈음 정보가 담긴 모달이 확장 표출됩니다.
+* **네이버 한자 사전 연동:** 상세 보기 내 링크 클릭 시 해당 한자의 네이버 사전 검색 페이지로 새 창 이동합니다.
+* **Web Speech API TTS 기능:** 스피커 아이콘 터치 시 브라우저 내장 음성 합성 엔진(`speechSynthesis`)을 통해 한국어 구사율 0.9 배속으로 정확한 훈음 음성 가이드를 출력합니다.
 
-## **3\. 인터랙션 및 제스처 생명주기 (Interactions & Touch Life-Cycle)**
 
-### **3.1 일반 모드 (isQuizMode \=== false)**
 
-* 한자 영역을 단순 터치/클릭하거나 하단 훈음 영역을 클릭하는 모든 조작이 동일하게 openModal(globalIdx)로 귀결되어 즉각 상세 팝업창을 표출함.  
-* 이 시기에는 음성 인식(Web Speech API) 마이크 가동 시도가 원천 차단됨.
+### 2) 즐겨찾기(노트) 시스템 (Bookmarks)
 
-### **3.2 퀴즈 모드 (isQuizMode \=== true) \- 스크롤 간섭 극복형 터치 시스템**
+* **영구 데이터 바인딩:** `localStorage`(`hanja_bookmarks`)와 실시간 동기화되어 브라우저를 재부팅해도 사용자의 별표 정보가 보존됩니다.
+* **지연 렌더링 가드(Dirty Flag):** 사용자가 카드의 별표를 누르거나 모달에서 북마크를 토글할 때마다 `isFavoritesDirty = true` 상태로 마킹됩니다. 7번 탭(즐겨찾기 화면) 진입 시 이 플래그가 참일 때만 선별적으로 DOM 컴파일을 재수행하여 연산 낭비를 막습니다.
 
-사용자의 스크롤 모션과 탭(클릭) 동작, 그리고 음성 인식 학습을 위한 꾹 누르기(Hold) 동작의 오작동 간섭을 차단하기 위한 하드웨어 수평 제어 알고리즘 작동.
+### 3) 디스플레이 개인화 설정
 
-\[Touch / Mouse Down\]  
-       │  
-       ▼  
- ┌──────────┐      300ms 초과 경과  
- │터치 좌표 │ ─────────────────────► \[Hold 판정\]  
- │  저장    │                        \- 마이크 즉시 동작 시작 (iOS/Safari 지원)  
- │          │                        \- 빨간색 펄스 및 마이크 아이콘 활성화  
- └────┬─────┘  
-      │  
-      ├─► 드래그 (이동 거리 \> 10px) ──► \[스크롤 상태 확정\]  
-      │                                \- 마이크 Abort (무효 취소 및 aborted 리다이렉트)  
-      │                                \- 펄스 해제 및 모바일 스스크롤 스레드 활성화  
-      │  
-      └─► 터치 해제 (300ms 이내) ─────► \[단순 탭 판정\]  
-                                       \- 마이크 Abort 및 모달 상세창 팝업 출력
+* **글꼴 크기 실시간 가변 조절:** 사용자의 시각 편의를 위해 한자 크기(16px ~ 64px) 및 훈음 크기(9px ~ 28px)를 헤더 컨트롤러로 실시간 제어할 수 있습니다.
+* CSS 변수(`--hanja-size`, `--hun-size`) 스코프 제어 방식을 사용하여 리플로우 오버헤드를 제어하며, 변경값은 로컬 스토리지에 즉시 영구 갱신됩니다.
 
-#### **A. 음성 인식 제어 규칙**
+### 4) 자가 테스트 (퀴즈 모드) 엔진
 
-1. **동기식 마이크 시동 (iOS/Safari/크롬 사용자 제스처 제약 우회)**:  
-   * touchstart 또는 mousedown 이벤트가 유입되는 즉시 사용자의 터치 물리 스택 컨텍스트 내부에서 recognition.start()를 직접 동기식으로 호출하여 브라우저 수준의 보안 차단 제약을 통과함.  
-2. **스크롤 임계값 판정 (Drag Threshold)**:  
-   * 이동 거리 판정 수식 적용:![][image8]  
-   * 사용자의 움직임 변위가 **$10\\text{px}$을 초과하면 즉시 드래그 상태로 판정**하고 녹음 대기 타이머(holdTimer)를 전면 폐기함.  
-   * 스크롤 상태 확정 즉시 마이크를 분석 결과 도출 없이 소멸 처리하는 recognition.abort()를 호출하고, 브라우저 스크롤을 방해하지 않도록 터치 제어권을 반환하여 화면 밀림이 매끄럽게 흐르도록 유도.  
-3. **잔음 꼬리 버퍼 (Tail Time Buffer)**:  
-   * "뿔 각", "값 가" 등 끝음이 짧은 단어를 발음할 때의 여운 손실을 차단하기 위한 메커니즘.  
-   * 손가락을 떼는 순간(touchend/mouseup) 화면의 빨간색 점멸 시각 피드백 UI는 0ms 단위로 기민하게 회수하여 유저에게 빠른 반응성을 주는 동시에, 실제 녹음 엔진 스레드 정지 명령인 recognition.stop()은 **$400\\text{ms}$의 지연 오차 타이머(setTimeout)를 두고 비동기적으로 천천히 작동**하도록 설계. 이로 인해 단어의 꼬리 받침 소리까지 완벽하게 스캔 연산됨.
+* **훈음 블러 스크리닝:** 퀴즈 모드 활성화 시 전체 카드의 훈음 라벨이 블러 처리(`quiz-blur-target`)되어 암기 테스트 환경을 조성합니다. 훈음 영역을 수동 클릭하여 개별 카드의 블러를 강제 탈착할 수도 있습니다.
+* **오디오 신디사이저 피드백 (Web Audio API):** 브라우저 미디어 리소스 파일을 로드하는 대신, 전역 싱글톤 `AudioContext` 주파수 발진기(`OscillatorNode`)를 이용하여 이펙트 음원을 실시간 오디오 노드로 합성 출력합니다.
+* **정답 (Correct):** Sine 파형과 Triangle 파형의 고주파 조합 화음(C6계열)을 부드러운 감쇄 볼륨 곡선(`exponentialRampToValueAtTime`)으로 재생합니다.
+* **오답 (Incorrect):** Sawtooth 파형의 저주파수 음역대에 Lowpass Filter를 융합하여 둔탁한 경고음을 자생적으로 합성 출력합니다.
 
-## **4\. 음성 평가 및 피드백 엔진 (Speech Evaluation Engine)**
 
-### **4.1 유사도 알고리즘 (Phonetic Similarity)**
 
-사용자가 마이크에 흘려 넣은 한국어 발음의 유사성을 판독하기 위해 "자모 분해 알고리즘"과 "레벤슈타인 편집 거리 알고리즘"이 유기적으로 가동됨.
+### 5) 모던 PointerEvents 인터페이스 기반 음성인식 채점 파이프라인
 
-1. **자모 분해 처리 (Hangul Disassembly)**:  
-   * 한글 음절 코드 체계(![][image9])를 분석하여 초성, 중성, 종성을 분해하고 1차원 음소 스트링으로 변환. 모든 문장 부호와 공백은 정규식(/\[\\.\\?\\\!\\,\\s\]+/g)으로 정제한다.  
-   * 예: "각" ➡️ ㄱㅏㄱ, "가" ➡️ ㄱㅏ  
-2. **레벤슈타인 편집 거리 계산 (Levenshtein Distance)**:  
-   * 자모 분해가 적용된 사용자 음성 값(![][image10])과 데이터베이스 내 한자의 표준 정답 훈음 값(![][image11]) 사이의 삽입, 삭제, 대체 비용의 행렬을 구성하여 최소 거리를 획득. 알고리즘 시간 복잡도는 ![][image12]) 이내에 연산이 완수된다.  
-3. **최종 유사도 매칭 판정**:  
-   * 유사도 비율 도출 수식 적용:![][image13]  
-   * **정답 통과 임계치:** ![][image14] **(![][image15]** **이상)**.
+* **터치 반응 지연 제거 및 이중 발화 방지:** 구형 모바일의 `touchstart/mousedown` 파이프라인을 완전히 통합한 웹 표준 `PointerEvents` 단일 통로를 구축하여 드래그 스크롤 시 마이크가 오작동하는 현상을 원천 방어합니다.
+* **0ms 즉시 음성 스트리밍 수집:** 퀴즈 모드에서 미해결 한자 카드를 누르고 있는 동안 `webkitSpeechRecognition` 인터프리터 스트림이 개방되며 실시간으로 음성을 파싱하고 중간 결과(`interimResults`)를 대조 채점합니다.
+* **스크롤 이탈 및 드래그 트랙킹 감지:** 포인터를 누른 채 기준 좌표값에서 10px 이상 이탈하는 이동 행위가 감지되면 사용자가 스크롤을 시도하는 것으로 간주하여 즉시 마이크 세션을 파괴하고 오작동을 차단합니다.
+* **1.2초 만료 백업 타임아웃 채점:** 포인터를 떼는 순간(`pointerup`) 시스템은 채점 중 펄스 애니메이션 상태로 전환되며 1.2초의 독립적인 가드 타이머를 가동합니다. 구형 기기의 음성 마감 프레임 패킷 누락으로 인해 무한 대기 상태에 빠지는 현상을 방지하고, 시간 초과 시 안정적으로 오답 판정을 내립니다.
 
-### **4.2 결과 피드백 시스템 (Feedback System)**
+### 6) 실시간 개발자 디버그 콘솔 라이브러리
 
-음성 엔진의 비동기 연산 완료(onresult) 시점에 타겟의 무결성을 지키기 위해, 터치 엔드에 소멸되지 않는 전용 임시 캐시 공간 processingTargetIndex를 매핑 호출하여 판정 연산 실행.
+* **이스터 에그 트리거:** 메인 타이틀 영역을 2.5초 이내에 5회 연속 터치하면 하단에 실시간 인앱 디버그 로그 콘솔 콘테이너(`#dev-console`)가 토글 표출됩니다.
+* 시스템 부팅 상태, 탭 전환 타겟팅, 음성 인식 수집 버퍼 현황 및 실시간 파싱 매칭 일치율 데이터(%)를 모바일 기기 현장에서 PC 연결 없이 다이렉트로 정밀 실시간 모니터링할 수 있습니다.
 
-* **통과 판정 (Similarity** ![][image1] **0.6)**:  
-  * 해당 한자 카드 테두리 및 배경에 초록색 정답 피드백 프레임(flash-correct) ![][image15]초간 작동.  
-  * 해당 한자의 훈음 가림막 블러 처리가 영구 소멸되어 일반 텍스트 노출 상태로 전환 (solved 클래스 장착).  
-  * 디바이스 진동 가동: $40\\text{ms}$의 가벼운 햅틱 진동 피드백 출력.  
-* **탈락 판정 (Similarity \< 0.6)**:  
-  * 해당 한자 카드 테두리 및 배경에 주황색 오답 피드백 프레임(flash-incorrect) ![][image15]초간 작동.  
-  * 사용자의 반복 오답 학습을 유도하기 위해 **해당 한자를 즉시 즐겨찾기(★) 목록에 자동 등록 연동**.  
-  * 디바이스 진동 가동: \[40ms 진동, 80ms 대기, 40ms 진동\] 패턴의 오류 햅틱 출력.
+---
 
-## **5\. 비밀 디버그 모듈 및 최적화 (System Debug & Optimization)**
+## 3. 데이터 및 기획 규격 명세
 
-### **5.1 개발자용 실시간 콘솔창 (Secret Dev Console)**
-
-* **활성화 트리거**: 상단 Sticky 헤더의 타이틀("4급 한자 마스터" 부분)을 **2.5초 이내에 연속 5회 클릭 또는 터치**하면 화면 하단에 고정된 시스템 터미널 슬라이드가 즉각 토글됨.  
-* **UI/UX 사양**:  
-  * 화면 하단에 고정된 콤팩트 터미널형 드로어 (fixed bottom-0 left-0 w-full h-44 bg-slate-950/95 font-mono z-50 shadow-2xl).  
-  * Clear(로그 지우기), Close(콘솔 닫기) 조작 버튼 연동.  
-* **순환 로그 시스템 (Circular Log Queue)**:  
-  * 로그가 축적될 때 레이아웃 리플로우(Reflow)를 막기 위해 CSS contain: content; 격리 속성을 적용.  
-  * 힙(Heap) 메모리 누수를 원천 방어하기 위해 화면에 찍히는 로그 인스턴스의 개수를 최신 **최대 50개**로 제한하고, 초과 유입 시 선입선출(FIFO) 방식으로 메모리 자동 소멸 제거 처리.  
-  * 로그가 적재될 때마다 화면 스크롤이 자동으로 최하단으로 자동 이동하도록 설계.  
-* **실시간 이벤트 로깅 범위**:  
-  * 마이크 가동 개시, 홀드 감지 상태, 유저 드래그 이탈 감지, 오디오 Abort 및 정지 플래그, 음성 인식 수집 텍스트 원본, 자모 분해 상세 변환 구조, 레벤슈타인 거리 계산 결과, TTS 실행 오디오 스트림, 하드웨어 장치 마이크 예외 원인 등 전체 프로세스를 실시간 기록.
-
-### **5.2 저사양 하드웨어 그래픽 가속 최적화 (style.css)**
-
-* **300ms 터치 딜레이 방어**: html, body 전체에 네이티브 터치 동작 제어인 touch-action: manipulation;을 선언하여 구형 태블릿 브라우저의 연산 타이밍 랙을 완전 해소.  
-* **하드웨어 GPU 연산 가속**: 가림 블러막 모드 작동 시, CPU 리소스를 잠식하는 트랜지션을 생략하고 GPU 가속을 유도하는 하드웨어 가속 힌트 속성 바인딩.  
-  will-change: filter;  
-  transform: translateZ(0);  
-  backface-visibility: hidden;
-
-* **경량화된 펄스 피드백**: 무거운 프레임 드랍을 유발하는 box-shadow 실시간 픽셀 계산 애니메이션을 완벽히 배제하고, 저사양 칩셋의 그래픽 오버헤드가 제로에 수렴하는 테두리 색상(border-color) 및 배경색(background-color) 전환 애니메이션(mic-border-pulse)으로 구현.
-
-## **6\. 품질 검증 및 예외 테스트 시나리오 (QA Test Cases)**
-
-| 번호 (ID) | 테스트 시나리오 (QA Test Case) | 검증 절차 및 조작 방법 (Test Procedure) | 기대 결과 (Pass 기준) | 상태 (Status) | 관련 코드 모듈 (Module) |
-| :---- | :---- | :---- | :---- | :---- | :---- |
-| **TC-01** | 일반 모드에서 카드 클릭 | isQuizMode \=== false 상태에서 한자 카드를 짧게 터치/클릭한다. | 음성 인식(마이크)이 가동되지 않고 즉시 해당 카드의 상세 모달 창이 부드럽게 팝업된다. | PASS | mainContainer.click / openModal |
-| **TC-02** | 모바일 스크롤 간섭 배제 | isQuizMode \=== true 상태에서 한자 카드를 손가락으로 누른 채 화면을 아래로 10px 이상 길게 쓸어내린다(드래그). | 마이크 펄스 애니메이션이 활성화되려다가 즉각 무효 취소(abort)되며 화면이 자연스럽게 스크롤되며, 손을 떼어도 상세 팝업이 발생하지 않는다. | PASS | handleVoiceMove / touchmove |
-| **TC-03** | 단음절 잔음 여운 처리 | 퀴즈 모드에서 '뿔 각', '값 가' 등 짧은 단어를 발음한 직후 고속으로 손가락을 화면에서 떼어 낸다. | 시각적 펄스 UI는 손가락을 뗀 즉시(0ms) 기민하게 소멸하되, 실제 녹음은 400ms 동안 지속된 후 순차 종료되어 발음의 꼬리 받침이 정상 수집 채점된다. | PASS | handleVoiceEnd (Tail Time Buffer) |
-| **TC-04** | 제스처 보안 제약 우회 | 모바일 사파리 및 크롬 환경에서 한자 카드를 터치하여 마이크 시동 상태를 확인한다. | 비동기 타이머 스택이 아닌 터치 시작(touchstart/mousedown) 동기 이벤트 핸들러 컨텍스트 내부에서 recognition.start()가 실행되어 마이크가 무결하게 시동된다. | PASS | handleVoiceStart |
-| **TC-05** | 의도적 취소 예외 로그 필터링 | 카드를 누르고 드래그하여 스크롤 취소 상태(abort)를 유도한 뒤 디버그 콘솔창을 관찰한다. | 브라우저가 송출하는 'aborted' 메커니즘 에러를 빨간색 \[Error\]로 로깅하지 않고, 취소 안내용 노란색 \[System\] 정보성 로그로 안전하게 필터링한다. | PASS | recognition.onerror |
-| **TC-06** | "뿔 각" 발음 매칭 채점 | 퀴즈 모드에서 카드를 꾹 누르고 훈음을 명확히 발음한 뒤 손가락을 뗀다. | 음성 텍스트 변환 후 자모 유사도가 계산되어 ![][image16] 합격 시 정답 피드백(초록 플래시 \+ 진동 1회 \+ 블러 영구해제)이 구동되고, 불합격 시 오답 피드백(주황 플래시 \+ 진동 2회 \+ 자동 즐겨찾기)이 구동된다. | PASS | recognition.onresult / calculatePhoneticSimilarity |
-| **TC-07** | 메모리 누수 방지 및 순환 큐 | 디버그 콘솔창을 띄운 상태에서 홀드 및 스크롤 조작을 반복하여 로그를 60회 이상 연속으로 강제 발생시킨다. | 콘솔창의 누적 로그 총개수가 설정값인 최대 50개를 초과하지 않아야 하며, 가장 오래된 로그 노드부터 순차적으로 DOM 상에서 영구 소멸되어 메모리를 보존한다. | PASS | appLog |
-
-[image1]: <data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAZCAYAAAA4/K6pAAAA3ElEQVR4XmNgGAXDBcjLyzsC8QkFBYUIY2NjVnR5ooCMjAwn0JAkIL4AxMni4uLc6GqIAiAXgFwCNOQMENeoqKjwoashFjADDXAC4sNA3C0tLS2MroBYwAh0kTnQkP1APAWIJdEVEAWAXmGXk5OrAxrwBBheKujyOAFy4AINyCc6cEEKQRqAGs+RFL2gUAeFvjwkXfgDhZjR1WAFoMCBBhIosKwYiNUIAkCn+gBt26ioqKgH5DKiyw8BAAphoPPFoeGAFysrK4sxoIcP0P8GQMlZROJekEEoBgxtAAD0sDRUbguQWwAAAABJRU5ErkJggg==>
-
-[image2]: <data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHEAAAAZCAYAAAAG2cHnAAAEwklEQVR4Xu2YXYhWRRjHj6yBYR9GbYv78c67H7WIefVCYYlUWFGwIVghLITgRWESpBdBSAQSmlgtFkW2tURICwUR5lUSUhFhghFaF9FFsRQRGMR64cq6/v4789Ds7Dm7Lrbv7qvnD3/OnGeeOfN8zHlmzsmyEiVKlChRokSJEiUWLaoem1N5jM7Ozl7n3D54EG5C1JTqNDiWEIO78O0AfAt/10uWKhnod5VKZbi7u/vWtK9uwNBVcBv8Eo7jwAepjlCr1a6hfxf8HqNrsIv2YfSfTnUbFS0tLcvxawi/PlVcaK/meoLrA6muoJgE/d/gyrS/bpCxJGIj17vhSFESlSz6f9GrqnvaD8OJIv0GhN7AAfhVV1fXjRLg3w75SKKeT3Qngfxx+s8veBINMkLG5CWFUtGhBMIDJpOj3O9S6Yl1GxWqLvhzFn+eMllbW1s7spdVdWJdQYvZ+S3l84ZIIrLN9E3AftrLpNvc3HxdorMi7A997e3tbdKD9+qeYNxseipB6LWE+VaGvWSpdBJZXfdabH2Juc9j7zr5JjvkQ6onhK3lVfy4U/GKk7igcQgDc5Po/CY/AXfDD+Ez8Ad0X5Ex0qH9HLK/pEf7uPP7Sj/G7+F6Fm7PfMkSPuN+NDzzWznL9eNwP8qYYQVjqhXzBwWaeY/ITtnL/TvOl1JVn21ZcrBBtkn9kitebmoSFy4OMsIVJDEYqgcfszeQCW/j/k+40/SsJMH92X8raInzyR+vRAcEeYDsV3hQC4HbLbQHee61plOE8CbshP/AMcYO9PT03JDqCVrt1VlO3OHNOxZ8HES0VHLa98F/Ozo6HjVdvWXgXds3Q2ymlNN6xWEaZISMmSmJ1Wi/iBw/3draeotkZnwlOQgQhDucD/gnWQiQ4PyKlrMvwI8sMLNBdjDHkPYskfaLjP8Ox3tSXc1N/xOpPEbkywV0N5jcYgKPMOeysHj2V6NzwExJnO84TIMZnJdE5IPOn9L6TBY5LmNrkhUZb892/vPkpqhLZWUA+QX4SCQvhMYzZm+6Uhm/FvmPYZVPlj/pIN+n4MW6KfRpgd7R2BchsnsySXojXSijpjOXJEbPu+w45MImKEiiHbUvN4lf9/b2Xh91qcTo21Or8OilrEDnv9+eTOUCtlfp/waehO/Bn50v94Uf6wbnF+qMSYSv0f97TGRjzpfhP7gfDt+a8x6HXNgEBUlcC8/BfpPNpZxG49/MooA6X0beQP8e58vM7rg/DwpSfMrLQZPsgI8RjNuzWZ5nqPoT+DnGrTOZxcSFchrrG+b4Jv5vcchFZPChLHlAKEuHXbTpz3Sw4Tpkp9bor8bfXFcHVZWPh5Cd1J4mAe3tcNz5X3l1h47zzH0qDrzLOdgk0Bt0CI6YH0Ld48ADN8iIMHAicFT7C4laY3rO/577Cb4Pt6qfsW+bkeFZdirTL7wvnP8YPoXu8fBW6HT3YDLXjmhPMtkZ2WXPrReY9344wtx74LNqu4JyXPV/sM5ENo9VknLqFmMcwgfq+kpBqYpWoFZzk1Z3KH3TgrBYoUAqwAR8o/5Upf2XgoaOQ2L8VYuGjQMrdwVG9zn/6+r1Of8yukLQ0HHA6K3O1/5J4sxeOZTqXeko41CixNWIiyu8Ef6+55W1AAAAAElFTkSuQmCC>
-
-[image3]: <data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACsAAAAZCAYAAACo79dmAAACxklEQVR4Xu2VPWhUQRSF35IIiooRWZewP7ObgFuoYFhU1MbCH1ACQggWplBsRNIkKSRil0ILJaKpYmBLxQTE2qBCIEIEbdKmMNiouDZRFInrd3wzZnjuW0OKTYo9cJid8+7cOTP37ntB0EQTTTQRi46Ojh25XK6cyWT2+zparzHmaDKZ3MY00dnZuRutL5/PH/DjGokEmw9j6itGSp7eivYYViOc1OG8uMYBo4cxUKlhNkCbgPPoi4xT8Cxyix/TMOiGMPAAjseYvR/V1gsJzAzCHgxdW4tZqtJWKBQMMd30e5r5Znhc83Q6vcvFlUqlTcSlyNcuqveRWxUT0WpXjcWHCLqjRHXMjqGNMr6B7+Er2OWeY2yA+QdY5fcc4xN4gTU3lQ/2B+F/QnjKfEmxcFaHY5y08yXWPNLhV3a3sOUfVwbN48wyLxMyHNgTM+8jrqKDejEla+y2iwvCqo3AZZ6fdLHaD21Be+uSmF7k9wTGt7iYKHTSAZL0OiHObLFY3B54paFsGRPe8EOmrdKcWeVwcUI2m92H/gVOuViBeY893HXlqftmIaDL2PI7Lc5sFCbsr3dwQT0oLc6sF/uaZzu9R7qsu+i/4BlP/xcEXmHxok+z0ksf4YyanbhLSqh4t9YzILZLW4XZGVshB7XIDa2B03VvthZq3azV9Mf5a9Zrg5f2q1bP7BH4A44xTXi62kBvmWMmbJMR//l/YcL++UafHfQ0bTbmtwvGz6N914ZO88yWXax9w5TRPzHutaEq/2m0tzq0BH73w2U/XyxIdMKEpa9aauGsfeepXEPwBbwM78HP8KqeeTnc2+A5fGbCD8w8xuYo8R7F0N+nbO6q5WAqldrKOO1pFflxedcEjGfZ+Jw2rNVfkTZo0UHtB2H1pW0U4np2w4Ebb8NkN2Z/Mo7W/WSuN0zYy+rRP8T8LR0gGtfERsNv2QH2DVtKCecAAAAASUVORK5CYII=>
-
-[image4]: <data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGcAAAAZCAYAAAAsaTBIAAAEnUlEQVR4Xu2YXYhVVRiG9zAT9J9h0zh/Z+0zMzRYQRenkswoIkIxQ1ISUuymEsK6KEqUIAi8qKvJoiAE8SJiLAoZgpiGskZMENLAHwgjElFSaq6ESpzpec/61mmxOWdmItgzZ9ovvOy93v2tdb7vW/8nSQoUKFCgQIECBQo0AXp6eq5xzj0FP4A7u7u7e7I2TY5W4loN3xNLpdJ6xZw1yuThLexuR27J2uWGNE2X4MQ3PIfUKbw/hmM/81yRtW1GVCqVq4jnHeJ5vbe3t5/ns5QvwePlctkFu76+vpvQPuX7Zp6dfLuLnHzL+8vJHHVQGz++G57CmY4gavbAw3I4Nm5GkOCVxDLGrOgOGh2wCW1KsVNsk8b7VrijVhHQmXeiHYXlWM8F/OhS+Bs80N7efn3QcX4N2iTPR2L7ZgQxbIs6ogqtEJTPwp/CoKQT98I3k2iW8L1TnaNZFLTcgOMV56d4vc6ZUmBaFhQAvBfnH1I59Vir+pi3hnpoiyygKtUm2tVZLdjnAUb/3fzuMXx9Lmjmyy/GTtO0WkzBXR0dHddJw/cNlD+Xz7nnYabOgbv16zy/hlfgRXgIvgY3Oj/lj4QDBO/Pw9NW9wpVn4YP8v6XaacVzD8ezA2IbwW+XIafKWnStP/w/mPw0/nOGg/7Uu55sE3wMBwfHBy8IejORhEN7A2a3tEuwKVBYx0foHwOjkSnnxZst6NNaJTh8GLKo5SXh3rTAZ9uS/1GPAmPw4eTBhsySX7S2cifLTTiqbcn+Bd/U2x8O6PYQ/wDAwM3xjZ55aEKjNfBi1RcpjJPjZBTwblgZ07VlgFDC+V34WWNxiBap4/Br6g3BDdEdRqiv7//Vup8CVfT3s0sSQ/w/h3vrybRsmFoQX+xq6vrlow+LSze86XMfmr70Di+bin5E5tWlCl4SIkNdnnkIYaC1PFZ01A/qqm+RY6hbwtGDZyKN9yNGf0O5zt9lAReG39rBDkPV8aaRiJtva/RHo9i2l4O30gazKp60Aimzvd0+j2xbvebkThedRa+7LfYtgY9jzxMC+ucyXh0zcKpJ2LdprqWpT/guvhbI2D3kjbdrA5aNUv4/it+DFvSjoT9YDawjjkov0xqo81NtLWo7O802m9qS5VgA+MLxR60PPJQA42+4KKNL/EzaY/L3HMaOKV70kdwQneCINp03kc79zt/2z4XJaUh7C5SvXfUg5YX2lyDr4+GE9VsoNjAJ3FnajmUb9prS/5gdJJnX1xPQN8Bd4VyHnmowX7sT3ifyjbCzvMjj9exu5Ta3mTaMtOGEltetPSgfaigVNZMcH4PG5uLSy2+LUn9AeN3knQm0PlNfR8mbXbUHYXbk2iZJJZ2bA6E3Fh7+eVBnUCFk/AZ54+GZ3F+cxI5KZhTEzz3w2HeP3b+AvuKTkAayfrm7KTj7ILHc1Wk6Vg5/G9G/X9FtNzU485gZ8vPD+ok54/HmjEnsrnIPQ+qPNNyYU5Vp7NGmp6p3REWELS3VeD6RrmYl3mIncp++z9hXuVBU1UbNc6MwAvak2b862EBYl7mIfV42/nTRuCqrN1CR5GHAgWaAX8Dt9LnKRpHGeYAAAAASUVORK5CYII=>
-
-[image5]: <data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACsAAAAZCAYAAACo79dmAAACh0lEQVR4Xu2WO2hUQRiF75IIiooruln2OfsAlyWGIFupTQofKAQEGyGNYCFIGgURxC6FFgFFU4QgLBaioihiaRBBsIigIKYUFNKIoCBrIbJZv587Q4bJvTdXcE2Ke+Awd878/8yZx86s5yVIkCBBICo+Trl6JpPZVi6X20qpiUKhUKTM2SQn7eb0BQzWhOfgC9hl4DsBMWLqM+yF8Kab0xcwUBODJygPwKUgs6xqi7a3cM7hM7hYrVaVm9NXKL16IWbH0c/aWqvV2oQ+Cw/b+n9BlFlZ/WKxWLA1MY9+kc+UrqdlhWViEkt9MxyTOud8l8mTSRKX1ePl6vX6EPKgxDjagMlZhSizLojbBx/XarUdRiPvPNoX2ON7gfIJnMDsVcqfcJKwVMXHU+odiYWvZXKUD3W9Q859mfzKiA5UTLOyMsQ8qATcGvpsi7Fpb2VlUtSnYNc+MuIY7SOc032e5vs2xreYmFDENUvMfvgJNt02Y5bykq2XSqW96N/hI6qDRqd+Uk/uMrxn71QkYpqVVZqBbzC0020MM2v6DsiTY3EDfRket/RoxDGbz+d3E7MIX8pD4bbHMPuq0Whst5pk8lckB87/05XlVzxKzA/lbKdBhFk5Or/gjKdvD63LMbhF/EHlH5Mpuz0Uxiy864Uk0Okh2pfDJmSZbcuPRjR9H7fRv1IO61DZ/qNo7+T5FoHvSdiVCZj+VkEbWNKBPc0Onb3nlzlix6Ifk/a1zCr/6X6u/FfuA/ELbPEeiWF3jjhjXchms1sp5y3tm/hy+/8r6CtmjM5ybpvAOQYDcrnrByFwp9YVYWd2w4EVT2NyHLO/Ka+v+WSuJzB5Rln/yDB/TSbgxiXYaPgDxTzdIEzolawAAAAASUVORK5CYII=>
-
-[image6]: <data:image/png;base64,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>
-
-[image7]: <data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAZCAYAAAAv3j5gAAAB2klEQVR4Xu2UTyhEURTG54WiRNIk5s+bN01kR5NkYyEbC1KssLdRijI1W9koGwvKzkI2LElZsKOsLFAsSMpqrFiwMH5n3DvuXO/lz8bCfPV13/3ud8655717XyhURhl/hmg0WuO67hhcg4ue57XZniCkUqm6eDw+rWKzMrc9BSSTyXoM+3A+HA7XJhKJDp7P4YjttYGnXXlnYDOxkzInZ6vtDbGbDIsnjA1aYz4OL+isyfSakE3hOSRuT96IkivRtuCmPBfNklyKsJP1oghisVgX+iPjkKmbILYfz6sdqzaek26Lomo952NOoz/BBVM3gWeQ9bxPrBTKy7opFhL6mH11E18VgjOmGGT+shDrHryDG0wdJetvJB1lTPPAbwsBB98cvit8CREYupk/fCoUlDBI90EFvin8t4w3cAXOq0Il3yiJeG8n1IVg1tS/A2KWXfvU6bsAdyhWrfX4+9F9kVFrcrE57i2h0u+xBLdlTQQjX+k9EpBsQrXuKclR7R/rBJFIpJH5KXyGPaIZSeVAFGIZR+A97FS5PpBOp6sotMriAV0NqyJnPHdoj0q6i3bJ38LVOtosPHLf/yTyyq5hn173gyP/JwqOkqhXituGADhy4mSDP4wr47/iDcbKl3Ytnxd0AAAAAElFTkSuQmCC>
-
-[image8]: <data:image/png;base64,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>
-
-[image9]: <data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIIAAAAZCAYAAAD9ovZ9AAAHRElEQVR4Xu1ZfYhVRRS/jzXY6PvDlnT3zd11aTP6ki0jKBEyQ8IIP0o0LJLSPyRRQXPBMExSUbGFMtRYLRaMlIqQEqUkIyyhIFKhklLWxMCVwoQMs9/vzjnP82bvffse1Ks/7g8O786ZM2fOnDkzc2ZeFOXIkSNHjhw5cuTIkSNHzWhra7uqWCz2NDc33xbWWcRx/KhzbnXIR7tLwZ8O2sj61tbWjlAGaEDdw6DXQN2QGd/Z2XlJKMS21CG6FoJuDGXqBYy3EX6Z2dLSciu/wWoYPnx4M3jPohyrHP0G3tQRI0bcgGJh6NChl6PN/bB9RkkZwLGAlnJsaP4i2rXbekXgg+n0byjT3t5+Jfqcp7owhzeBXQjlakEBipZA4e9Q3BlWKjhwyBzBz1bLZxCBvxu0nA5A/Z34PgSarDLko/wOaC6dBSfdRV2gD9le5dgGtAOOuEMc+TXoHGiSytQTGMvV8MkX6P9CQGtsEENuWiiDdsfoC5XBmEaDv5vj4vjwvVNkF0ZmAp33wSG2Fb8tZzvrJ2m/FzJj0c81+J3tvJ/KdNUEKLkHCvpdhUDgoFG/mYaHgYA2i8E/QIOUh/IM0GEY3CQy41D+C78bUBwiMitE32yWKYvyPspGMhiuGPB+Bn2PAGpR/fWCTAQn7FvQEdi2hf6KAmeDP5H1Qvu5UrlitZ4rGrz3UPc0ig3kYWe5Drq+dMbvHCPH6sxOQr+ifAA0V3n47gadR1A9EsicAo1Uuaohq3mT81tQZiCAPxX1a0F9NhDUgDA4YODd4J9RQxm5NBz0buy3WA6my/kVsUB0ddIG0BENIKCAcq/ITRBe3SA73FY3yPHEQAAtDvkKtgcdBf3G1Wz4ZT5wfgGF86A+2Et7RI5zwXazWO7o6LgC3/tC/dWCHSwATeYgUgxIAEfwSOA5dDN+j9pJR3kk6FQYCGZSVwirICsgCQJZIR/ZPiUod6DcowMmZCK41U5UXr3wTwUCd1ToeQUyu6wu8TvHlrR1fqUPmAex4QT4bSxT37Bhw66PZHdhDoP6084ES9WQM2stlWYFghwJa2J/fCRRbSddJzwrEEK+gEnjLNY7v91lnmnFi1veydb0BPRfhQTC2+h/nfPHw3GU3wfFVo6BwLEWfXDzePgR389EMlEZGAK57aDzaDuWDJnwAfOQxSd4BKGutxjkJFVBVh9XecxyViA4n7hw2+LukRYIPBvT8obUQEB5Dg1G3UnQ0qampstsfQjIP05Hoc2iqELAEBK0vGVwZZxD2/X2nLbg0YP6aSE/BAMBfe+iHZHvn35YjvJ30OFUTvzwMXa6a1mW3Kavkt2xX1xcDBtpu+Qje8kL54F+DPn0HcrbxJ9M4h+KKgfeABTQaD4UTFVGWiBwoMAmzVZdSiCgPMHVEAgKuW5yNXD1pCY30v9h6FiWds0MAbnZ6LeH1zu54r2A9vvTrmjcSlH/WMhPQYHnL3+VIfnPWdqlPHw3krQc+YDhud4HajX8BLIQ94De0sXAX+FVFQgWsT+2mVSX9A0KCI9yciQoLyUQhkD5ythnyAlcSiBkTXgW3wL1k5xPeD4I78niqJ3QMy+qIsqL/gq1MtQDHfeC/w3qH4xkMiUIVzMYrGy10LGB9lRyukwex1eW5MpR/Dr460J7syY8i2+ggcdFOSesTAUFofCYJSg4I0b/AtqHLfUW/gYyjDjKnGNZ9LShfCKccOOsLik/gO91XKkpMkedSaA0COKL2zF3hzFxhfMP8iOhb2bIJ9COye5nzr9JvAE67Kq8b6PpKsj+WfSBlMDYnSRmfMjB93EXBLRMXlmSq0GAuiWRBDhtx/jGyzev1AMmXHT10X+SeM4npSzmAbtzTRAlAwywcCk7gjnXOHGlrbHo3w0YMOOMTCk7FpkkvwAdlAxYs+v1LnhAQvklbsmWZ8GVyVtJyDdo4NhAU2p5gZMJYI5SCgQ9GsDrQbFgAsMGgq5Q61PyFnIC+S089sHHoGS8vG5Lf3xL0fpG598yEh+b/srmS2y9AOpWXs1w/j57tpKzGY3On3m9kRkIjHmi6HcMPQs5YL6G7Zf8gtnx5tgnWLcHMjScq1ODYBnKf1CfkvT5U1GuTvUE7JkGej66ON5C7F9hT2Mso8mQHawX/Ni04y7E/CdJBKXdUyif5XiC8fXj9z6200cm+kF1aeJJW1jWRye02aL5m3mcYqI8SttWDUae88fBBSE++nwub+YJNDt1/glT5fpjOYtku9sA3iex/y+CE3wwNls5gwjlT51/Zp4B+ZepD7xVur0xup2PdO3DUtnLZb0gN5FXQTtg65P4fdP517uyc1+ezL8CdcHO55wP3G1hom3GY6n0PmB08fq5CDTF+Qe7kp9EH5P0H8hngDi/Y/xKvsr8Vyhwy6XhWCljMrJ8vh/wLJ8CmjjIVv5/QmlscPrYuPx2UAIXDMY+nosBFEdm16wVVlfW0zrtoD2D+DxHjhw5cuTIkSNHjtrxN3Cyreds/noiAAAAAElFTkSuQmCC>
-
-[image10]: <data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA8AAAAbCAYAAACjkdXHAAABI0lEQVR4XmNgGAXUB/Ly8pJAXKWgoCCALkcIMAI1NgPxE2lpaRl0SbxATk7OGKjxKwiD2OjyOIGMjAwnUNNioKZHQPo3kLZBV4MTADUEAXE30K8VQPo/ULMvuhqsQFlZWQyoYS2QlgVqKgdpBuJodHVYAVBhKVBTDIgNshFqczm6OgwAVKQN8quoqCgPlA/WDMSt6GoxANmajY2NWYGKpsjKytrCxEChDBT7DQy4hchqMQBQoStQ4V+oTeh4K9AADnQ9YKCkpMQPVLAcGL8qyOLykOT5EIgPwLyCAYCSRUCT07GIwzTfVVRUFEeXZ4T66wLQdjl0SaiLjkMNkIRLgAIGKPAe6icQfg40SAsmD+T3AfEvJHkQe66WlhYb3JBRMNgBAFyMUN63YiLFAAAAAElFTkSuQmCC>
-
-[image11]: <data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABEAAAAZCAYAAADXPsWXAAABNElEQVR4XmNgGAVDBMjLy1vJyck9AtL/kfAXIH4GZf8F4q1KSkpq6HoxAFDhJCD+Jisra4osLiMjowoUvwvE16WlpWWQ5VCAqKgoD1DRASC+KiUlJYIur6CgsBDkKqCLfdHl4AAoqQRU9BxIzwdyGZHlkCz4CcSWyHIoAOgFP5BNQBvT0eWAYuHQcJkC5LKgy8MBUEEr1CZPIJYEYUVFRXmgy+qB7JdAgyKBypjR9cEBknNfg7wDpGdB8VwgvgrELSoqKnzo+lAAPq+AACxQQa5El4MDeRxRCwLA6OUEum4HUP4fkHZBlwcDQlELNNgWKPcT6JpdILXo8mAAVKAJxG+BeCkDatQyg5wPxO+B+AookJHkIABqw0OoX0EYFIVPoMn/CRD/AeIHQH4uyEvo+kfBiAAA2qRbNqPq0PcAAAAASUVORK5CYII=>
-
-[image12]: <data:image/png;base64,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>
-
-[image13]: <data:image/png;base64,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>
-
-[image14]: <data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACYAAAAZCAYAAABdEVzWAAADCklEQVR4Xu2WO2hUQRSG75IVFBUJui77filLqgirhY0oGkkTkagQIlhqI4gpjI+AomxhVJCIIMEmhQhBsRIELYIWatKkMFoEkcCCiNgIlj6+f+/M7uzNXZLGQtwffubMOf/MnJkzd3Y9r4MO/k10lUqlrbFYbEMw4CIej6+vVCprgv6/gmKxuCmXyz2BN+B0Nps9gTsS1KXT6W3SpVKpdDC2DIjXIR6Gk7AaNqhQKJSJjRvNsMa4cRIZxf8IM8r4zdiv8/n8S9iPnUC/nfYi/JLJZA65Y0OBsAfOM8EFJcQCx7BnVRJHcwS+x79DZcK+Bp/rlBRXaei/0MJ2jOZjM3to9+I/TjvE3GewJwhHrS4UWhzhO01CN+Is8INJKkaTob+oye04Yt305+Bp9WkTcEmn5mhG4YDtm7Wmw6qxDOb4v8Eex7efRM/bUikhN1GDCL4HcEYnWC6XN2K/CiR2Dh6weua8vqoSmsv6RjvXnRBN+bpcHfGJkMRUqin8n/EXje6WksWMaFP479GmFMPuQ3/bW6mEgk7JnJaSuwsvwTtwQXfJ6kwC7RJr+LlPOW1S8ygJ2hH5VTrsx6sqoaAJNTH8BQeNu37k9D9oInPRZ1aTmGBOqo8kez3/qYgqSVtC5+sfx1ey41rgJLaQTCa3OP4BfL+Z8FTYx2ARllgQSsiWUA8q+kn0l3N+te7rlINjdPS9BL/rRNyX2klsSv12CbTzWwRLiL0bLmbNnWR8PzzbOsqrJxZH+HGlxLCrYQmYxGpt7k5LCQW0I3AJJtQ3iVebQ5qIEngI51i02zrdUqqvyen/zDY/fSW1Ft9TUbb1W7gltL6s/zQ1ElMLb3qBV6AOXVSCX53TaLn8cugZwTcLr9hx5veuhm/I+izMSUy7vxwCvkE3Ma2JfdXVNGAu5Bj8hPBkzn8uaux4p6tT32j0aB7FntMGQv4h1EuoDQf89hdkHu7z/Ad6LEzXAg1iwsPcu4P6EoNxQX7FpZM+GBfy/u/imOc/FcvABneRzFv4DF01ZGMddPD/4g8+1u46hxDR1QAAAABJRU5ErkJggg==>
-
-[image15]: <data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAZCAYAAAAv3j5gAAAB50lEQVR4Xu2TzytEURTH3xQhIjEm8+vNm5lIFtRkYWMhGwtSlEKUlZ1SUray8Q+IlKxsxAYLFiwslFIWKLIgsrIRCxb4HO6bruvNpCgL861v953v+Z577n3vPMvKIYc/QzgcLrJtuw/OwxnHcWpNTzYkk8nSaDQ6quonJTY9VjweLyO5Daf8fn9JLBZr5PkEdpteL+Brhec0GmSthuNwVQ7/yYhhgsQBa7mrEffDU24W0L0mqKnHd8PheiUWP/EFvJSmurFcmmBcSosgEok0oT+wduq6gTw8C/A4GAxWKs2nDjks+bQToQ7emY04QAr9EU7rug5yDryGK3yTgkQiURUKhSpI+UxvesNMjUxdB542PC9wHd8c6xhchns0DJvmDhKv5obfbPReKz7xi5ZKpfKJ16jbksFKmxHbf6HRBr5CTZfhepEb62bPDTPpOrIcUhq9yqqLccRbD7M7DJO6roNRbiB/71H7tZG8R8Rdj+vLh37Wry8/NuMetNRUqR99H65Y2ih7vjqVGIBXJB0lyb8wJZvIZiLI2BIfwSfY7NZyuBF4xmhHJM44DG6SRrMYdjB0qSbHPDe6HnXzTdmUV2a7eiAQKKZ2kdwhuSH7Y7yPdI8JH6evoagHU4s0Nw1Z8JPaHP4b3gDqQZnwH3SZ3AAAAABJRU5ErkJggg==>
-
-[image16]: <data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADQAAAAWCAYAAACPHL/WAAAA8ElEQVR4XmNgGAWjYBSMgmEP5OXlHYH4hIKCQoSxsTEruvyQBDIyMpxATyUB8QUgThYXF+dGVzMkASiGQDEF9NQZIK5RUVHhQ1czVAEz0ENOQHwYiLulpaWF0RUMVcAIjDFzoKf2A/EUIJZEVzAkATDpscvJydUBPfQEmN9U0OWHDEAuLIAeyh+yhQXI4SAPAD1ybkgX56BSDVS6yUPqJX+gEDO6miEBQJkdmulBmd+KYah6BASAScsHGBsbFRUV9YBcRnT5UTAKqAxAJRgwuYlD8xFerKysLMYw2PMXMP8YAB07i0jcC/IYuhmjgEYAANsPNFSwqfJeAAAAAElFTkSuQmCC>
+| 항목 | 규격 및 제한 사항 |
+| --- | --- |
+| **학습 데이터 범위** | 한국어문회 기준 4급 배정한자 총 600자 (`hanja_data.js` 바인딩) |
+| **인식 임계치 (Threshold)** | 자모 편집 거리 매칭 비율 60% 이상 패스 |
+| **세션 타임아웃 가드** | 포인터 해제 기준 최대 1200ms 경과 시 자동 오답 수렴 처리 |
+| **디버그 로그 버퍼링** | 최대 50라인 보존 (FIFO 큐 방식으로 메모리 누수 방지) |
+| **오디오 채점 피드백** | Web Audio API 기반 무복제 자생 주파수 오디오 노드 합성 방식 |
