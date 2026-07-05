@@ -443,6 +443,11 @@ function executeFinalJudgment(index, isCorrect) {
         clearTimeout(forcedTimeoutTimers[index]);
         delete forcedTimeoutTimers[index];
     }
+
+    // ➡️ [인프라 개선] O,X 판정이 종결되었으므로 마이크 스트림 즉시 파기 및 하드웨어 자원 강제 즉각 회수
+    if (recognition) {
+        try { recognition.abort(); } catch (err) {}
+    }
     
     if (isCorrect) {
         playSound('correct');
