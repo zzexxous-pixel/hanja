@@ -1,0 +1,1998 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Audio API 퀴즈 효과음 생성기</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800&display=swap');
+        body {
+            font-family: 'Pretendard', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between">
+
+    <!-- Header -->
+    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-indigo-600 rounded-lg text-white shadow-lg shadow-indigo-500/30">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="font-extrabold text-xl tracking-tight bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">AudioSynth SFX</h1>
+                    <p class="text-xs text-slate-400">Web Audio API 정답/오답 사운드 라이브러리</p>
+                </div>
+            </div>
+            <div class="text-xs px-3 py-1 bg-slate-800 rounded-full border border-slate-700 text-slate-300">
+                HTML5 Web Audio API
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-6xl w-full mx-auto px-4 py-8 flex-grow space-y-8">
+        
+        <!-- Controls & Test Area -->
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- 볼륨 & 설정 컨트롤러 -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 flex flex-col justify-between shadow-xl">
+                <div>
+                    <h3 class="font-bold text-lg mb-4 text-indigo-400 flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                        사운드 오프셋 조절
+                    </h3>
+                    <div class="space-y-6">
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="text-sm font-semibold text-slate-300">볼륨 부스터 (Volume)</span>
+                                <span id="volumeVal" class="text-sm text-indigo-400 font-bold">1.2 (최대 부스트)</span>
+                            </div>
+                            <input type="range" id="volumeSlider" min="0.1" max="1.5" step="0.05" value="1.2" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                            <p class="text-[11px] text-amber-500/80 mt-1">⚠️ 1.0 초과 시 클리핑(찌그러짐) 현상이 발생할 수 있습니다.</p>
+                        </div>
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="text-sm font-semibold text-slate-300">피치 주파수 배율 (Pitch)</span>
+                                <span id="pitchVal" class="text-sm text-indigo-400 font-bold">1.0x</span>
+                            </div>
+                            <input type="range" id="pitchSlider" min="0.5" max="2.0" step="0.1" value="1.0" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-6 pt-4 border-t border-slate-800/80">
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        브라우저가 보안 정책 상 사운드 차단을 방지하기 위해 사용자가 이 페이지를 클릭하거나 조작할 때 AudioContext가 자동으로 활성화됩니다.
+                    </p>
+                </div>
+            </div>
+
+            <!-- 미니 퀴즈 시뮬레이터 -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:col-span-2 flex flex-col justify-between shadow-xl relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-40 h-40 bg-indigo-500/5 rounded-full blur-3xl -z-10"></div>
+                <div>
+                    <span class="text-xs font-bold text-indigo-400 uppercase tracking-widest px-2 py-1 bg-indigo-500/10 rounded-md border border-indigo-500/20">Mini Game</span>
+                    <h3 class="font-extrabold text-2xl mt-3 mb-2">실시간 퀴즈 정/오답 테스트</h3>
+                    <p class="text-sm text-slate-400 mb-6">퀴즈 화면에서 사용자가 O, X를 클릭했을 때의 반응을 미리 체험해보세요!</p>
+                    
+                    <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-5 mb-6 text-center">
+                        <span class="text-xs text-slate-500 uppercase tracking-wide">Q. 대한민국에서 가장 높은 산은 한라산이다?</span>
+                        <div class="text-lg font-bold text-slate-200 mt-1">한라산 (1,947m) vs 백두산 (2,744m)</div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <button onclick="playQuizResult(true)" class="group py-4 px-6 bg-emerald-600/10 hover:bg-emerald-600 border border-emerald-500/30 hover:border-emerald-500 text-emerald-400 hover:text-white rounded-xl transition-all duration-300 flex flex-col items-center justify-center gap-1 hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+                        <span class="text-3xl font-black group-hover:scale-125 transition-transform duration-200">O</span>
+                        <span class="text-xs font-semibold opacity-80">정답 (맞았습니다!)</span>
+                    </button>
+                    <button onclick="playQuizResult(false)" class="group py-4 px-6 bg-rose-600/10 hover:bg-rose-600 border border-rose-500/30 hover:border-rose-500 text-rose-400 hover:text-white rounded-xl transition-all duration-300 flex flex-col items-center justify-center gap-1 hover:shadow-[0_0_20px_rgba(244,63,94,0.3)]">
+                        <span class="text-3xl font-black group-hover:scale-125 transition-transform duration-200">X</span>
+                        <span class="text-xs font-semibold opacity-80">오답 (틀렸습니다!)</span>
+                    </button>
+                    <button onclick="playMicTrigger()" class="group py-4 px-6 bg-sky-600/10 hover:bg-sky-600 border border-sky-500/30 hover:border-sky-500 text-sky-400 hover:text-white rounded-xl transition-all duration-300 flex flex-col items-center justify-center gap-1 hover:shadow-[0_0_20px_rgba(14,165,233,0.3)]">
+                        <span class="text-3xl font-black group-hover:scale-125 transition-transform duration-200">🎙️</span>
+                        <span class="text-xs font-semibold opacity-80">녹음 시작 (마이크 온)</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- SFX Library Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <!-- 🔵 Correct Sound Effects (O) -->
+            <section class="space-y-4">
+                <div class="flex items-center space-x-3 pb-2 border-b border-emerald-800/50">
+                    <div class="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xl">O</div>
+                    <h2 class="text-xl font-extrabold text-emerald-400">정답 효과음 추천 샘플 10개</h2>
+                </div>
+                <div id="correct-list" class="space-y-3">
+                    <!-- Dynamic Sound Cards -->
+                </div>
+            </section>
+
+            <!-- 🔴 Incorrect Sound Effects (X) -->
+            <section class="space-y-4">
+                <div class="flex items-center space-x-3 pb-2 border-b border-rose-800/50">
+                    <div class="w-8 h-8 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center font-bold text-xl">X</div>
+                    <h2 class="text-xl font-extrabold text-rose-400">오답 효과음 추천 샘플 10개</h2>
+                </div>
+                <div id="incorrect-list" class="space-y-3">
+                    <!-- Dynamic Sound Cards -->
+                </div>
+            </section>
+
+            <!-- 🟢 Microphone Wake Sound Effects (🎙️) -->
+            <section class="space-y-4">
+                <div class="flex items-center space-x-3 pb-2 border-b border-sky-800/50">
+                    <div class="w-8 h-8 rounded-full bg-sky-500/20 text-sky-400 flex items-center justify-center font-bold text-xl">🎙️</div>
+                    <h2 class="text-xl font-extrabold text-sky-400">마이크 온 효과음 샘플 10개</h2>
+                </div>
+                <div id="mic-list" class="space-y-3">
+                    <!-- Dynamic Sound Cards -->
+                </div>
+            </section>
+
+        </div>
+
+    </main>
+
+    <!-- Code Preview Modal -->
+    <div id="codeModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl flex flex-col max-h-[85vh]">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-indigo-400 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+                    사운드 제네레이터 소스코드
+                </h3>
+                <button onclick="closeCodeModal()" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <p class="text-xs text-slate-400 mb-3">아래 함수를 그대로 JavaScript 프로젝트에 추가하여 호출하면 사운드가 출력됩니다.</p>
+            <div class="relative flex-grow overflow-auto rounded-lg border border-slate-800 bg-slate-950 p-4">
+                <pre><code id="codeText" class="text-xs text-indigo-300 font-mono block whitespace-pre-wrap"></code></pre>
+            </div>
+            <div class="mt-4 flex justify-end gap-3">
+                <button onclick="closeCodeModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium">닫기</button>
+                <button onclick="copyModalCode()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-lg shadow-indigo-600/20">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+                    복사하기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Toast Message -->
+    <div id="toast" class="fixed bottom-6 right-6 px-4 py-3 bg-indigo-600 text-white font-semibold text-sm rounded-lg shadow-2xl flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none z-50">
+        <svg class="w-5 h-5 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span id="toastMsg">코드가 클립보드에 성공적으로 복사되었습니다!</span>
+    </div>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-900 bg-slate-950 py-6">
+        <div class="max-w-6xl mx-auto px-4 text-center text-xs text-slate-500">
+            © 2026 Web Audio Synth. 퀴즈 효과음 추천 가이드. 라이선스 제한 없이 자유롭게 사용하세요.
+        </div>
+    </footer>
+
+    <!-- Web Audio API Synth Engine -->
+    <script>
+        // 전역 Audio Context 선언
+        let audioCtx = null;
+
+        function getAudioContext() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            return audioCtx;
+        }
+
+        // 볼륨 설정 가져오기
+        function getVolumeFactor() {
+            return parseFloat(document.getElementById('volumeSlider').value);
+        }
+
+        // 피치 주파수 배율 가져오기
+        function getPitchFactor() {
+            return parseFloat(document.getElementById('pitchSlider').value);
+        }
+
+        /* ==============================================
+         * 🔵 CORRECT (정답) SOUND PATTERNS 10 TYPES
+         * ============================================== */
+
+        const correctSfx = [
+            {
+                id: "c1",
+                name: "클래식 차임 (Classic Chime)",
+                desc: "부드럽고 맑은 미-솔 2단계 상승음. 대중적인 정답 반응 사운드.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.4, now + 0.02);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+                    const osc1 = ctx.createOscillator();
+                    const osc2 = ctx.createOscillator();
+                    
+                    osc1.type = 'sine';
+                    osc2.type = 'triangle';
+
+                    osc1.frequency.setValueAtTime(523.25 * pitch, now); // C5
+                    osc1.frequency.setValueAtTime(659.25 * pitch, now + 0.12); // E5
+
+                    osc2.frequency.setValueAtTime(659.25 * pitch, now); // E5
+                    osc2.frequency.setValueAtTime(783.99 * pitch, now + 0.12); // G5
+
+                    osc1.connect(gainNode);
+                    osc2.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc1.start(now);
+                    osc2.start(now);
+                    osc1.stop(now + 0.6);
+                    osc2.stop(now + 0.6);
+                },
+                code: `function playCorrectChime() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    // 볼륨 최대화 엔벨롭
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.4, now + 0.02);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    
+    osc1.type = 'sine';
+    osc2.type = 'triangle';
+
+    osc1.frequency.setValueAtTime(523.25, now); // C5
+    osc1.frequency.setValueAtTime(659.25, now + 0.12); // E5
+
+    osc2.frequency.setValueAtTime(659.25, now); // E5
+    osc2.frequency.setValueAtTime(783.99, now + 0.12); // G5
+
+    osc1.connect(gainNode);
+    osc2.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc1.start(now);
+    osc2.start(now);
+    osc1.stop(now + 0.6);
+    osc2.stop(now + 0.6);
+}`
+            },
+            {
+                id: "c2",
+                name: "상승형 아르페지오 (Bright Arpeggio)",
+                desc: "경쾌한 3단 메이저 코드 상승 효과. 높은 성취감을 줍니다.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.45, now + 0.01);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+
+                    const osc = ctx.createOscillator();
+                    osc.type = 'sine';
+                    
+                    const notes = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5
+                    notes.forEach((freq, idx) => {
+                        osc.frequency.setValueAtTime(freq * pitch, now + (idx * 0.08));
+                    });
+
+                    osc.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.8);
+                },
+                code: `function playCorrectArpeggio() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.5, now + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    
+    const notes = [261.63, 329.63, 392.00, 523.25];
+    notes.forEach((freq, idx) => {
+        osc.frequency.setValueAtTime(freq, now + (idx * 0.08));
+    });
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.8);
+}`
+            },
+            {
+                id: "c3",
+                name: "동글동글 비눗방울 (Happy Bubble Pop)",
+                desc: "마치 물방울이나 비눗방울이 팡! 하고 터지는 귀엽고 산뜻한 소리.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.5, now + 0.01);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+                    const osc = ctx.createOscillator();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(600 * pitch, now);
+                    osc.frequency.exponentialRampToValueAtTime(1200 * pitch, now + 0.12);
+
+                    osc.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                },
+                code: `function playBubblePop() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.5, now + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, now);
+    osc.frequency.exponentialRampToValueAtTime(1200, now + 0.12);
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.3);
+}`
+            },
+            {
+                id: "c4",
+                name: "하이테크 성공음 (Cyber Chirp)",
+                desc: "짧고 미래지향적인 디지털 테크 기기의 스마트 승인 알림 효과음.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.35, now + 0.01);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+
+                    const osc = ctx.createOscillator();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(880 * pitch, now);
+                    osc.frequency.setValueAtTime(1760 * pitch, now + 0.04);
+                    osc.frequency.setValueAtTime(1320 * pitch, now + 0.08);
+
+                    osc.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.2);
+                },
+                code: `function playCyberChirp() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.35, now + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(880, now);
+    osc.frequency.setValueAtTime(1760, now + 0.04);
+    osc.frequency.setValueAtTime(1320, now + 0.08);
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.2);
+}`
+            },
+            {
+                id: "c5",
+                name: "황금종 효과음 (Golden Bell)",
+                desc: "맑고 깨끗한 주파수의 금속성 종소리. 성당이나 사찰의 힐링 벨 느낌.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.45, now + 0.005);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+
+                    // 벨의 금속성 불협화음 주파수 합성을 위한 멀티 오실레이터
+                    const freqs = [587.33, 880, 1174.66, 1760]; // D5, A5, D6, A6 대역
+                    freqs.forEach((freq, idx) => {
+                        const osc = ctx.createOscillator();
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(freq * pitch, now);
+                        osc.connect(gainNode);
+                        osc.start(now);
+                        osc.stop(now + 1.2);
+                    });
+
+                    gainNode.connect(ctx.destination);
+                },
+                code: `function playGoldenBell() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.45, now + 0.005);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+
+    // 하모닉스 및 금속성 톤을 조합한 멀티 주파수 재생
+    const freqs = [587.33, 880, 1174.66, 1760];
+    freqs.forEach((freq) => {
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now);
+        osc.connect(gainNode);
+        osc.start(now);
+        osc.stop(now + 1.2);
+    });
+
+    gainNode.connect(ctx.destination);
+}`
+            },
+            {
+                id: "c6",
+                name: "레트로 8비트 레벨업 (Retro Arcade)",
+                desc: "고전 아케이드 패밀리 게임기 스타일의 화려하고 긴박감 넘치는 정답음.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.35, now + 0.01);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+
+                    const osc = ctx.createOscillator();
+                    osc.type = 'square'; // 레트로 특유의 단단하고 사각진 소리
+
+                    const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50];
+                    notes.forEach((freq, index) => {
+                        osc.frequency.setValueAtTime(freq * pitch, now + (index * 0.05));
+                    });
+
+                    osc.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.6);
+                },
+                code: `function playRetroArcadeWin() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.35, now + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'square'; // 8-bit 스퀘어 웨이브 사운드
+
+    const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50];
+    notes.forEach((freq, index) => {
+        osc.frequency.setValueAtTime(freq, now + (index * 0.05));
+    });
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.6);
+}`
+            },
+            {
+                id: "c7",
+                name: "성공 브라스 팡파레 (Short Fanfare)",
+                desc: "승리의 순간을 시각화하는 듯한 우렁차고 풍성한 브라스 톤의 사운드.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.3, now + 0.02);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+
+                    // 웅장한 화음을 위해 3개 오실레이터 조합
+                    const chords = [392.00, 493.88, 587.33, 783.99]; // G4, B4, D5, G5 메이저 화음
+                    chords.forEach((freq) => {
+                        const osc = ctx.createOscillator();
+                        osc.type = 'sawtooth'; // 브라스 톤과 유사한 톱니파
+                        osc.frequency.setValueAtTime(freq * pitch, now);
+                        
+                        // 사운드에 생동감을 위해 꼬리부분 피치 살짝 위로 벤딩
+                        osc.frequency.exponentialRampToValueAtTime((freq + 20) * pitch, now + 0.5);
+                        
+                        osc.connect(gainNode);
+                        osc.start(now);
+                        osc.stop(now + 0.8);
+                    });
+
+                    gainNode.connect(ctx.destination);
+                },
+                code: `function playBrassFanfare() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.3, now + 0.02);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+
+    const chords = [392.00, 493.88, 587.33, 783.99]; // G 메이저 코드 화음
+    chords.forEach((freq) => {
+        const osc = ctx.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, now);
+        osc.frequency.exponentialRampToValueAtTime(freq + 20, now + 0.5);
+        
+        osc.connect(gainNode);
+        osc.start(now);
+        osc.stop(now + 0.8);
+    });
+
+    gainNode.connect(ctx.destination);
+}`
+            },
+            {
+                id: "c8",
+                name: "반짝반짝 요정 마법 (Sparkle Magic)",
+                desc: "요정의 요술봉에서 별가루가 떨어지듯이 흩날리는 반짝임 효과음.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    
+                    // 6개의 작은 소리를 시간차로 뿌림
+                    for(let i=0; i<8; i++) {
+                        const delay = i * 0.05;
+                        const gainNode = ctx.createGain();
+                        gainNode.gain.setValueAtTime(0, now + delay);
+                        gainNode.gain.linearRampToValueAtTime(vol * 0.15, now + delay + 0.01);
+                        gainNode.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.15);
+
+                        const osc = ctx.createOscillator();
+                        osc.type = 'sine';
+                        
+                        // 뒤로 갈수록 점차 고음으로 쪼개짐
+                        const freq = (1000 + (i * 250) + Math.random() * 200) * pitch;
+                        osc.frequency.setValueAtTime(freq, now + delay);
+
+                        osc.connect(gainNode);
+                        gainNode.connect(ctx.destination);
+
+                        osc.start(now + delay);
+                        osc.stop(now + delay + 0.2);
+                    }
+                },
+                code: `function playSparkleMagic() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    
+    for(let i=0; i<8; i++) {
+        const delay = i * 0.05;
+        const gainNode = ctx.createGain();
+        gainNode.gain.setValueAtTime(0, now + delay);
+        gainNode.gain.linearRampToValueAtTime(0.15, now + delay + 0.01);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.15);
+
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        
+        const freq = 1000 + (i * 250) + Math.random() * 200;
+        osc.frequency.setValueAtTime(freq, now + delay);
+
+        osc.connect(gainNode);
+        gainNode.connect(ctx.destination);
+
+        osc.start(now + delay);
+        osc.stop(now + delay + 0.2);
+    }
+}`
+            },
+            {
+                id: "c9",
+                name: "상큼한 마림바 타격 (Marimba Strike)",
+                desc: "천연 목재 악기인 마림바가 주는 자연스러운 통울림 사운드의 매력.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.5, now + 0.002);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+                    const oscMain = ctx.createOscillator();
+                    const oscSub = ctx.createOscillator(); // 따뜻한 배음용
+
+                    oscMain.type = 'triangle';
+                    oscSub.type = 'sine';
+
+                    oscMain.frequency.setValueAtTime(440 * pitch, now); // A4
+                    oscSub.frequency.setValueAtTime(880 * pitch, now);  // 옥타브 배음
+
+                    oscMain.connect(gainNode);
+                    oscSub.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    oscMain.start(now);
+                    oscSub.start(now);
+                    oscMain.stop(now + 0.4);
+                    oscSub.stop(now + 0.4);
+                },
+                code: `function playMarimbaStrike() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.5, now + 0.002);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+    const oscMain = ctx.createOscillator();
+    const oscSub = ctx.createOscillator();
+
+    oscMain.type = 'triangle';
+    oscSub.type = 'sine';
+
+    oscMain.frequency.setValueAtTime(440, now); // A4 기본음
+    oscSub.frequency.setValueAtTime(880, now);  // 옥타브 배음 추가로 따뜻함 형성
+
+    oscMain.connect(gainNode);
+    oscSub.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    oscMain.start(now);
+    oscSub.start(now);
+    oscMain.stop(now + 0.4);
+    oscSub.stop(now + 0.4);
+}`
+            },
+            {
+                id: "c10",
+                name: "희망찬 웅장 솔루션 (Major Chord Wave)",
+                desc: "가장 완전한 정답을 해결했다는 만족감을 심어주는 풍요롭고 단단한 코드 사운드.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.4, now + 0.05);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+
+                    // C 메이저 9도 코드 구성 (C4-E4-G4-D5)
+                    const frequencies = [261.63, 329.63, 392.00, 587.33];
+                    frequencies.forEach((freq) => {
+                        const osc = ctx.createOscillator();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(freq * pitch, now);
+                        osc.connect(gainNode);
+                        osc.start(now);
+                        osc.stop(now + 1.0);
+                    });
+
+                    gainNode.connect(ctx.destination);
+                },
+                code: `function playVictoryChord() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.4, now + 0.05);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+
+    const frequencies = [261.63, 329.63, 392.00, 587.33]; // C Add9 코드
+    frequencies.forEach((freq) => {
+        const osc = ctx.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now);
+        osc.connect(gainNode);
+        osc.start(now);
+        osc.stop(now + 1.0);
+    });
+
+    gainNode.connect(ctx.destination);
+}`
+            }
+        ];
+
+
+        /* ==============================================
+         * 🔴 INCORRECT (오답) SOUND PATTERNS 10 TYPES
+         * ============================================== */
+
+        const incorrectSfx = [
+            {
+                id: "w1",
+                name: "클래식 오답 버저 (Classic Buzzer)",
+                desc: "TV 퀴즈 쇼에서 자주 울리는 거칠고 낮은 단음 버저 사운드.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.4, now + 0.01);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+                    const osc = ctx.createOscillator();
+                    osc.type = 'sawtooth';
+                    
+                    // 불협화음에 최적화된 저주파수 셋팅
+                    osc.frequency.setValueAtTime(130 * pitch, now); // C3 대역의 저음
+                    
+                    // 사운드에 날카로움을 더하기 위해 로우패스 필터 연결
+                    const filter = ctx.createBiquadFilter();
+                    filter.type = 'lowpass';
+                    filter.frequency.setValueAtTime(1200, now);
+
+                    osc.connect(filter);
+                    filter.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.5);
+                },
+                code: `function playClassicBuzzer() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.4, now + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(130, now); // 거친 130Hz 저음
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(1200, now);
+
+    osc.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.5);
+}`
+            },
+            {
+                id: "w2",
+                name: "하강형 추락음 (Disappointing Slide)",
+                desc: "바람이 빠지거나 바닥으로 피치가 뚝 덜어지는 아쉬운 오답 효과음.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.45, now + 0.02);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+
+                    const osc = ctx.createOscillator();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(330 * pitch, now);
+                    osc.frequency.exponentialRampToValueAtTime(80 * pitch, now + 0.55); // 피치 추락 유도
+
+                    osc.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.6);
+                },
+                code: `function playFallingSlide() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.45, now + 0.02);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(330, now);
+    osc.frequency.exponentialRampToValueAtTime(80, now + 0.55); // 주파수 급격히 낮아짐
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.6);
+}`
+            },
+            {
+                id: "w3",
+                name: "묵직한 쿵 (Heavy Thud)",
+                desc: "가슴이 미어지도록 쿵! 하고 가라앉는 강력하고 둔탁한 드럼형 사운드.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.7, now + 0.002);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+                    const osc = ctx.createOscillator();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(150 * pitch, now);
+                    osc.frequency.exponentialRampToValueAtTime(0.01 * pitch, now + 0.35);
+
+                    osc.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.4);
+                },
+                code: `function playHeavyThud() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.7, now + 0.002);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(150, now);
+    osc.frequency.exponentialRampToValueAtTime(0.01, now + 0.35);
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.4);
+}`
+            },
+            {
+                id: "w4",
+                name: "에러 비상 알림 (Dual Alert Tone)",
+                desc: "삐- 뽀- 반복적인 긴박한 경고음. 사용자의 집중력을 유도합니다.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.35, now + 0.01);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+
+                    const osc = ctx.createOscillator();
+                    osc.type = 'sawtooth';
+                    
+                    // 불협화 경보음 교차 연주
+                    osc.frequency.setValueAtTime(440 * pitch, now);
+                    osc.frequency.setValueAtTime(392 * pitch, now + 0.15);
+                    osc.frequency.setValueAtTime(440 * pitch, now + 0.3);
+                    osc.frequency.setValueAtTime(349 * pitch, now + 0.45);
+
+                    osc.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.65);
+                },
+                code: `function playAlertAlarm() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.35, now + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    
+    // 비동기 연속음으로 불안한 감정 유발
+    osc.frequency.setValueAtTime(440, now);
+    osc.frequency.setValueAtTime(392, now + 0.15);
+    osc.frequency.setValueAtTime(440, now + 0.3);
+    osc.frequency.setValueAtTime(349, now + 0.45);
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.65);
+}`
+            },
+            {
+                id: "w5",
+                name: "단호한 엑스 베이스 (Hard Reject)",
+                desc: "'아니요!' 라고 거칠게 차단하는 차가운 일렉트로닉 거절 사운드.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.45, now + 0.005);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+                    const osc1 = ctx.createOscillator();
+                    const osc2 = ctx.createOscillator();
+
+                    osc1.type = 'sawtooth';
+                    osc2.type = 'square';
+
+                    // 거친 불협 마이너 2도 간격의 두 음
+                    osc1.frequency.setValueAtTime(180 * pitch, now); 
+                    osc2.frequency.setValueAtTime(185 * pitch, now); 
+
+                    osc1.connect(gainNode);
+                    osc2.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc1.start(now);
+                    osc2.start(now);
+                    osc1.stop(now + 0.4);
+                    osc2.stop(now + 0.4);
+                },
+                code: `function playHardReject() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.45, now + 0.005);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+
+    osc1.type = 'sawtooth';
+    osc2.type = 'square';
+
+    // 불협화음을 유도하는 초미세 주파수 어긋남 효과
+    osc1.frequency.setValueAtTime(180, now); 
+    osc2.frequency.setValueAtTime(185, now); 
+
+    osc1.connect(gainNode);
+    osc2.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc1.start(now);
+    osc2.start(now);
+    osc1.stop(now + 0.4);
+    osc2.stop(now + 0.4);
+}`
+            },
+            {
+                id: "w6",
+                name: "우울한 실망 (Minor Slide Drop)",
+                desc: "메이저와 정반대로 마이너 마이너 마이너하게 고뇌가 떨어지는 무드.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.35, now + 0.02);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+
+                    const osc = ctx.createOscillator();
+                    osc.type = 'sine';
+
+                    // 단음 하향 스케일 (C4 -> Ab3 -> G3)
+                    osc.frequency.setValueAtTime(261.63 * pitch, now); // C4
+                    osc.frequency.setValueAtTime(207.65 * pitch, now + 0.15); // Ab3
+                    osc.frequency.setValueAtTime(196.00 * pitch, now + 0.35); // G3
+
+                    osc.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.7);
+                },
+                code: `function playSadChime() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.35, now + 0.02);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+
+    // 단조로운 침울함(Minor chord 느낌)의 흐름
+    osc.frequency.setValueAtTime(261.63, now); // C4
+    osc.frequency.setValueAtTime(207.65, now + 0.15); // Ab3
+    osc.frequency.setValueAtTime(196.00, now + 0.35); // G3
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.7);
+}`
+            },
+            {
+                id: "w7",
+                name: "레트로 게임 오버 (Retro Game Over)",
+                desc: "8비트 비디오 기기에서 전원이 나가듯, 생명이 소멸하는 게임 오버음.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.3, now + 0.01);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+
+                    const osc = ctx.createOscillator();
+                    osc.type = 'square';
+
+                    // 빠르게 무너지는 주파수 하락 아르페지오
+                    const notes = [392.00, 311.13, 261.63, 196.00];
+                    notes.forEach((freq, idx) => {
+                        osc.frequency.setValueAtTime(freq * pitch, now + (idx * 0.12));
+                    });
+
+                    osc.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.8);
+                },
+                code: `function playRetroGameOver() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.3, now + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'square';
+
+    const notes = [392.00, 311.13, 261.63, 196.00]; // 단조로운 테마 하강 아르페지오
+    notes.forEach((freq, idx) => {
+        osc.frequency.setValueAtTime(freq, now + (idx * 0.12));
+    });
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.8);
+}`
+            },
+            {
+                id: "w8",
+                name: "가벼운 미스터치 틱 (Wood Block Click)",
+                desc: "게임 유저가 실수로 잘못 조작했거나 클릭 미스 시 깔끔하게 울리는 차단음.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.45, now + 0.001);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+                    const osc = ctx.createOscillator();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(150 * pitch, now);
+
+                    osc.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.1);
+                },
+                code: `function playMissTouchClick() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.45, now + 0.001);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(150, now); // 건조하고 짧은 로우톤
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.1);
+}`
+            },
+            {
+                id: "w9",
+                name: "기계 에러 크래시 (Hard Glitch)",
+                desc: "무언가 단단히 고장난 듯한 불안하고 자극적인 전자 회로 오작동음.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.25, now + 0.01);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+                    const osc1 = ctx.createOscillator();
+                    const osc2 = ctx.createOscillator();
+
+                    osc1.type = 'sawtooth';
+                    osc2.type = 'triangle';
+
+                    osc1.frequency.setValueAtTime(250 * pitch, now);
+                    osc1.frequency.exponentialRampToValueAtTime(50 * pitch, now + 0.35);
+
+                    osc2.frequency.setValueAtTime(120 * pitch, now);
+                    // 미세한 주파수 모듈레이션을 임시 추가하여 거친 질감 증폭
+                    osc2.frequency.setValueAtTime(1200 * pitch, now + 0.1);
+
+                    osc1.connect(gainNode);
+                    osc2.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc1.start(now);
+                    osc2.start(now);
+                    osc1.stop(now + 0.4);
+                    osc2.stop(now + 0.4);
+                },
+                code: `function playGlitchCrash() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.25, now + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+
+    osc1.type = 'sawtooth';
+    osc2.type = 'triangle';
+
+    osc1.frequency.setValueAtTime(250, now);
+    osc1.frequency.exponentialRampToValueAtTime(50, now + 0.35);
+
+    osc2.frequency.setValueAtTime(120, now);
+    osc2.frequency.setValueAtTime(1200, now + 0.1); // 하이 글리치 톤 레이어링
+
+    osc1.connect(gainNode);
+    osc2.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc1.start(now);
+    osc2.start(now);
+    osc1.stop(now + 0.4);
+    osc2.stop(now + 0.4);
+}`
+            },
+            {
+                id: "w10",
+                name: "차갑게 내려 앉는 비프 (Sad Slide Beep)",
+                desc: "심플하고 정밀하지만 무거운 톤의 단음 사인파 하락음.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.55, now + 0.01);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+                    const osc = ctx.createOscillator();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(350 * pitch, now);
+                    osc.frequency.exponentialRampToValueAtTime(100 * pitch, now + 0.28);
+
+                    osc.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                },
+                code: `function playSadSlideBeep() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.55, now + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(350, now);
+    osc.frequency.exponentialRampToValueAtTime(100, now + 0.28);
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.3);
+}`
+            }
+        ];
+
+        const micOnSfx = [
+            {
+                id: "m1",
+                name: "무전기 온 삑 (Radio Squelch & Beep)",
+                desc: "지지직거리는 노이즈와 함께 무전기가 켜질 때 나는 클래식 비프음.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    
+                    // 50ms 동안 무전기 노이즈 버퍼 직접 생성
+                    const bufferSize = ctx.sampleRate * 0.05;
+                    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+                    const data = buffer.getChannelData(0);
+                    for (let i = 0; i < bufferSize; i++) {
+                        data[i] = (Math.random() * 2 - 1) * vol * 0.15;
+                    }
+                    const noiseNode = ctx.createBufferSource();
+                    noiseNode.buffer = buffer;
+                    
+                    const noiseGain = ctx.createGain();
+                    noiseGain.gain.setValueAtTime(0.3, now);
+                    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+                    
+                    const osc = ctx.createOscillator();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880 * pitch, now);
+                    osc.frequency.setValueAtTime(1000 * pitch, now + 0.05);
+                    
+                    const toneGain = ctx.createGain();
+                    toneGain.gain.setValueAtTime(0, now);
+                    toneGain.gain.linearRampToValueAtTime(vol * 0.55, now + 0.005);
+                    toneGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+                    
+                    noiseNode.connect(noiseGain);
+                    noiseGain.connect(ctx.destination);
+                    osc.connect(toneGain);
+                    toneGain.connect(ctx.destination);
+                    
+                    noiseNode.start(now);
+                    osc.start(now);
+                    osc.stop(now + 0.2);
+                },
+                code: `function playRadioSquelchBeep() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    
+    // 50ms 동안 아날로그 무전기 정전기 노이즈 생성
+    const bufferSize = ctx.sampleRate * 0.05;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * 0.15;
+    }
+    const noiseNode = ctx.createBufferSource();
+    noiseNode.buffer = buffer;
+    
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.3, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    
+    // 시그널 비프음 
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, now);
+    osc.frequency.setValueAtTime(1000, now + 0.05);
+    
+    const toneGain = ctx.createGain();
+    toneGain.gain.setValueAtTime(0, now);
+    toneGain.gain.linearRampToValueAtTime(0.55, now + 0.005);
+    toneGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    
+    noiseNode.connect(noiseGain);
+    noiseGain.connect(ctx.destination);
+    osc.connect(toneGain);
+    toneGain.connect(ctx.destination);
+    
+    noiseNode.start(now);
+    osc.start(now);
+    osc.stop(now + 0.2);
+}`
+            },
+            {
+                id: "m2",
+                name: "AI 비서 웨이크 (AI Assistant Wake)",
+                desc: "인공지능 비서가 동작할 때 흘러나오는 부드럽고 친근한 정주파 상승 벨.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.5, now + 0.01);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+
+                    const osc1 = ctx.createOscillator();
+                    const osc2 = ctx.createOscillator();
+                    
+                    osc1.type = 'sine';
+                    osc2.type = 'sine';
+
+                    osc1.frequency.setValueAtTime(659.25 * pitch, now); // E5
+                    osc1.frequency.setValueAtTime(880.00 * pitch, now + 0.08); // A5
+
+                    osc2.frequency.setValueAtTime(880.00 * pitch, now); // A5
+                    osc2.frequency.setValueAtTime(1109.73 * pitch, now + 0.08); // C#6
+
+                    osc1.connect(gainNode);
+                    osc2.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc1.start(now);
+                    osc2.start(now);
+                    osc1.stop(now + 0.5);
+                    osc2.stop(now + 0.5);
+                },
+                code: `function playAiAssistantWake() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.5, now + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    
+    osc1.type = 'sine';
+    osc2.type = 'sine';
+
+    osc1.frequency.setValueAtTime(659.25, now); // E5
+    osc1.frequency.setValueAtTime(880.00, now + 0.08); // A5
+
+    osc2.frequency.setValueAtTime(880.00, now); // A5
+    osc2.frequency.setValueAtTime(1109.73, now + 0.08); // C#6
+
+    osc1.connect(gainNode);
+    osc2.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc1.start(now);
+    osc2.start(now);
+    osc1.stop(now + 0.5);
+    osc2.stop(now + 0.5);
+}`
+            },
+            {
+                id: "m3",
+                name: "스위치 딸깍 (Mechanical Mic Toggle)",
+                desc: "스튜디오 마이크의 단단하고 묵직한 하드웨어 스위치를 켜는 아날로그 무드.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    
+                    const clickGain = ctx.createGain();
+                    clickGain.gain.setValueAtTime(0, now);
+                    clickGain.gain.linearRampToValueAtTime(vol * 0.6, now + 0.001);
+                    clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+
+                    const osc1 = ctx.createOscillator();
+                    osc1.type = 'triangle';
+                    osc1.frequency.setValueAtTime(2500 * pitch, now);
+                    osc1.frequency.exponentialRampToValueAtTime(100 * pitch, now + 0.015);
+
+                    const popGain = ctx.createGain();
+                    popGain.gain.setValueAtTime(0, now);
+                    popGain.gain.linearRampToValueAtTime(vol * 0.45, now + 0.002);
+                    popGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+                    const osc2 = ctx.createOscillator();
+                    osc2.type = 'sine';
+                    osc2.frequency.setValueAtTime(90 * pitch, now);
+
+                    osc1.connect(clickGain);
+                    clickGain.connect(ctx.destination);
+                    osc2.connect(popGain);
+                    popGain.connect(ctx.destination);
+
+                    osc1.start(now);
+                    osc2.start(now);
+                    osc1.stop(now + 0.2);
+                    osc2.stop(now + 0.2);
+                },
+                code: `function playMicToggle() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    
+    // 딸깍 소리 트랜지언트
+    const clickGain = ctx.createGain();
+    clickGain.gain.setValueAtTime(0, now);
+    clickGain.gain.linearRampToValueAtTime(0.6, now + 0.001);
+    clickGain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+
+    const osc1 = ctx.createOscillator();
+    osc1.type = 'triangle';
+    osc1.frequency.setValueAtTime(2500, now);
+    osc1.frequency.exponentialRampToValueAtTime(100, now + 0.015);
+
+    // 하우징 통울림 (저주파 팝)
+    const popGain = ctx.createGain();
+    popGain.gain.setValueAtTime(0, now);
+    popGain.gain.linearRampToValueAtTime(0.45, now + 0.002);
+    popGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+    const osc2 = ctx.createOscillator();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(90, now);
+
+    osc1.connect(clickGain);
+    clickGain.connect(ctx.destination);
+    osc2.connect(popGain);
+    popGain.connect(ctx.destination);
+
+    osc1.start(now);
+    osc2.start(now);
+    osc1.stop(now + 0.2);
+    osc2.stop(now + 0.2);
+}`
+            },
+            {
+                id: "m4",
+                name: "앱 녹음 시작 (App Record Start)",
+                desc: "모바일 녹음기 앱에서 흔히 쓰이는 상쾌하게 튀어오르는 디지털 큐 사운드.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.45, now + 0.01);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+
+                    const osc = ctx.createOscillator();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(400 * pitch, now);
+                    osc.frequency.exponentialRampToValueAtTime(1600 * pitch, now + 0.15);
+
+                    osc.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                },
+                code: `function playAppRecordStart() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.45, now + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(400, now);
+    osc.frequency.exponentialRampToValueAtTime(1600, now + 0.15);
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.3);
+}`
+            },
+            {
+                id: "m5",
+                name: "디지털 스캔 온 (Cyber Scan Activate)",
+                desc: "하이테크 스캐너 및 녹음 채널이 순식간에 동기화되는 전자파 스윕.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.4, now + 0.01);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+                    const osc = ctx.createOscillator();
+                    osc.type = 'triangle';
+                    
+                    osc.frequency.setValueAtTime(300 * pitch, now);
+                    osc.frequency.linearRampToValueAtTime(900 * pitch, now + 0.1);
+                    osc.frequency.linearRampToValueAtTime(600 * pitch, now + 0.2);
+                    osc.frequency.exponentialRampToValueAtTime(1800 * pitch, now + 0.4);
+
+                    osc.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.5);
+                },
+                code: `function playCyberScanActivate() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.4, now + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(300, now);
+    osc.frequency.linearRampToValueAtTime(900, now + 0.1);
+    osc.frequency.linearRampToValueAtTime(600, now + 0.2);
+    osc.frequency.exponentialRampToValueAtTime(1800, now + 0.4);
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.5);
+}`
+            },
+            {
+                id: "m6",
+                name: "릴 테이프 머신 (Tape Machine Start)",
+                desc: "구형 릴 테이프가 가속 회전하기 시작하는 저음 구동음의 아날로그 감성.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.55, now + 0.05);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+
+                    const osc = ctx.createOscillator();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(50 * pitch, now);
+                    osc.frequency.exponentialRampToValueAtTime(320 * pitch, now + 0.4);
+
+                    osc.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.6);
+                },
+                code: `function playTapeMachineStart() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.55, now + 0.05);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(50, now);
+    osc.frequency.exponentialRampToValueAtTime(320, now + 0.4);
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.6);
+}`
+            },
+            {
+                id: "m7",
+                name: "스마트 링 신호 (Smart Ring Cue)",
+                desc: "스마트 워치나 초소형 기기에서 정밀하게 반응하는 상쾌한 극고역대 큐 빔.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.4, now + 0.002);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+                    const osc = ctx.createOscillator();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(1500 * pitch, now);
+                    osc.frequency.exponentialRampToValueAtTime(3000 * pitch, now + 0.08);
+
+                    osc.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                },
+                code: `function playSmartRingCue() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.4, now + 0.002);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1500, now);
+    osc.frequency.exponentialRampToValueAtTime(3000, now + 0.08);
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.25);
+}`
+            },
+            {
+                id: "m8",
+                name: "전술 무전 응답 (Tactical Radio Beep)",
+                desc: "군용 무전기 송신 직전, 타겟 비프 신호음이 끊어지듯 들어오는 더블 비프.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.5, now + 0.001);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+                    const osc = ctx.createOscillator();
+                    osc.type = 'sine';
+                    
+                    osc.frequency.setValueAtTime(1600 * pitch, now);
+                    osc.frequency.setValueAtTime(1600 * pitch, now + 0.03);
+                    osc.frequency.setValueAtTime(0 * pitch, now + 0.04);
+                    osc.frequency.setValueAtTime(1600 * pitch, now + 0.06);
+
+                    osc.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.15);
+                },
+                code: `function playTacticalRadioBeep() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.5, now + 0.001);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1600, now);
+    osc.frequency.setValueAtTime(1600, now + 0.03);
+    osc.frequency.setValueAtTime(0, now + 0.04);
+    osc.frequency.setValueAtTime(1600, now + 0.06);
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.15);
+}`
+            },
+            {
+                id: "m9",
+                name: "방송 온 에어 (On-Air Warning Signal)",
+                desc: "스튜디오 ON AIR 간판이 활성화될 때 울려 퍼지는 정갈한 초고음 크리스탈 하모니.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.45, now + 0.002);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+
+                    const osc = ctx.createOscillator();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(1046.50 * pitch, now);
+
+                    osc.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.85);
+                },
+                code: `function playOnAirSignal() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.45, now + 0.002);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1046.50, now);
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.85);
+}`
+            },
+            {
+                id: "m10",
+                name: "시스템 대기 해제 (System Device Awake)",
+                desc: "음성 디바이스 마이크가 활성화되었음을 완벽하게 알리는 디지털 3중 코드.",
+                func: function(vol, pitch) {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const gainNode = ctx.createGain();
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(vol * 0.4, now + 0.01);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+
+                    const osc = ctx.createOscillator();
+                    osc.type = 'sine';
+                    
+                    const notes = [523.25, 659.25, 1046.50];
+                    notes.forEach((freq, idx) => {
+                        osc.frequency.setValueAtTime(freq * pitch, now + (idx * 0.06));
+                    });
+
+                    osc.connect(gainNode);
+                    gainNode.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.6);
+                },
+                code: `function playDeviceAwake() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const gainNode = ctx.createGain();
+    
+    gainNode.gain.setValueAtTime(0, now);
+    gainNode.gain.linearRampToValueAtTime(0.4, now + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    const notes = [523.25, 659.25, 1046.50];
+    notes.forEach((freq, idx) => {
+        osc.frequency.setValueAtTime(freq, now + (idx * 0.06));
+    });
+
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.6);
+}`
+            }
+        ];
+
+        /* ==============================================
+         * 🖥️ UI CONTROLLER & RENDERING LOGIC
+         * ============================================== */
+
+        // 카드 컴포넌트 동적 렌더링 함수
+        function renderSfxList(list, containerId, type) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = "";
+
+            list.forEach((item, index) => {
+                let accentColor = "emerald";
+                let badgeText = "";
+                
+                if (type === 'correct') {
+                    accentColor = "emerald";
+                    badgeText = `정답 O-${index + 1}`;
+                } else if (type === 'incorrect') {
+                    accentColor = "rose";
+                    badgeText = `오답 X-${index + 1}`;
+                } else {
+                    accentColor = "sky";
+                    badgeText = `마이크 M-${index + 1}`;
+                }
+                
+                const card = document.createElement("div");
+                card.className = `p-4 rounded-xl border border-slate-800 bg-slate-900/40 hover:bg-slate-900 flex flex-col justify-between transition-all duration-300 hover:border-${accentColor}-500/30 group`;
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start gap-4 mb-3">
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-2">
+                                <span class="text-[10px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded bg-${accentColor}-500/10 text-${accentColor}-400 border border-${accentColor}-500/20">${badgeText}</span>
+                                <h4 class="font-bold text-sm text-slate-200 group-hover:text-white transition-colors">${item.name}</h4>
+                            </div>
+                            <p class="text-xs text-slate-400 leading-relaxed pr-2">${item.desc}</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 pt-2 border-t border-slate-800/60 mt-auto">
+                        <button onclick="playTarget('${type}', ${index})" class="flex-grow flex items-center justify-center gap-1.5 py-2 px-3 bg-${accentColor}-600 hover:bg-${accentColor}-500 active:scale-95 text-white text-xs font-bold rounded-lg transition-all shadow-md shadow-${accentColor}-900/10">
+                            <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            테스트 재생
+                        </button>
+                        <button onclick="showCode('${type}', ${index})" class="p-2 bg-slate-800 hover:bg-slate-700 hover:text-indigo-400 text-slate-300 rounded-lg text-xs font-semibold transition-colors" title="코드 보기">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // 특정 오디오 재생 핸들러
+        function playTarget(type, index) {
+            const vol = getVolumeFactor();
+            const pitch = getPitchFactor();
+            
+            if (type === 'correct') {
+                correctSfx[index].func(vol, pitch);
+            } else if (type === 'incorrect') {
+                incorrectSfx[index].func(vol, pitch);
+            } else {
+                micOnSfx[index].func(vol, pitch);
+            }
+        }
+
+        // 슬라이더 변경 감지 리스너
+        document.getElementById('volumeSlider').addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            document.getElementById('volumeVal').textContent = val >= 1.0 ? `${val} (최대 부스트)` : `${val}`;
+        });
+
+        document.getElementById('pitchSlider').addEventListener('input', (e) => {
+            document.getElementById('pitchVal').textContent = `${parseFloat(e.target.value).toFixed(1)}x`;
+        });
+
+        // 코드 모달 핸들링
+        let activeCode = "";
+        function showCode(type, index) {
+            const item = type === 'correct' ? correctSfx[index] : (type === 'incorrect' ? incorrectSfx[index] : micOnSfx[index]);
+            activeCode = item.code;
+            document.getElementById('codeText').textContent = activeCode;
+            document.getElementById('codeModal').classList.remove('hidden');
+        }
+
+        function closeCodeModal() {
+            document.getElementById('codeModal').classList.add('hidden');
+        }
+
+        // 클립보드 복사 함수 (보안 브라우저를 위한 execCommand 폴백 적용)
+        function copyTextToClipboard(text) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast();
+                }).catch(() => {
+                    fallbackCopy(text);
+                });
+            } else {
+                fallbackCopy(text);
+            }
+        }
+
+        function fallbackCopy(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-999999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showToast();
+            } catch (err) {
+                console.error('복사 중 오류 발생:', err);
+            }
+            document.body.removeChild(textArea);
+        }
+
+        function copyModalCode() {
+            copyTextToClipboard(activeCode);
+            closeCodeModal();
+        }
+
+        function showToast() {
+            const toast = document.getElementById('toast');
+            toast.classList.remove('opacity-0', 'translate-y-20');
+            toast.classList.add('opacity-100', 'translate-y-0');
+            setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', 'translate-y-20');
+            }, 2500);
+        }
+
+        // 미니 퀴즈 버튼 핸들러
+        let lastPlayedCorrectIndex = -1;
+        let lastPlayedIncorrectIndex = -1;
+        let lastPlayedMicIndex = -1;
+
+        function playQuizResult(isCorrect) {
+            const vol = getVolumeFactor();
+            const pitch = getPitchFactor();
+
+            if (isCorrect) {
+                let randIdx;
+                do {
+                    randIdx = Math.floor(Math.random() * correctSfx.length);
+                } while (randIdx === lastPlayedCorrectIndex);
+                
+                lastPlayedCorrectIndex = randIdx;
+                correctSfx[randIdx].func(vol, pitch);
+            } else {
+                let randIdx;
+                do {
+                    randIdx = Math.floor(Math.random() * incorrectSfx.length);
+                } while (randIdx === lastPlayedIncorrectIndex);
+
+                lastPlayedIncorrectIndex = randIdx;
+                incorrectSfx[randIdx].func(vol, pitch);
+            }
+        }
+
+        // 마이크 온 시뮬레이터 핸들러
+        function playMicTrigger() {
+            const vol = getVolumeFactor();
+            const pitch = getPitchFactor();
+            let randIdx;
+            do {
+                randIdx = Math.floor(Math.random() * micOnSfx.length);
+            } while (randIdx === lastPlayedMicIndex);
+
+            lastPlayedMicIndex = randIdx;
+            micOnSfx[randIdx].func(vol, pitch);
+        }
+
+        // 초기 빌드업
+        window.addEventListener('DOMContentLoaded', () => {
+            renderSfxList(correctSfx, 'correct-list', 'correct');
+            renderSfxList(incorrectSfx, 'incorrect-list', 'incorrect');
+            renderSfxList(micOnSfx, 'mic-list', 'mic');
+        });
+    </script>
+</body>
+</html>
