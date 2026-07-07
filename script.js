@@ -552,6 +552,12 @@ window.onload = function() {
         onEnd: function() {
             isListening = false; 
             appLog('System', '마이크 채널 오디오 하드웨어 스트림 폐쇄 가동 완료');
+
+            // [자연 종료 대응] 5초 만료 전, 아이가 침묵하여 브라우저가 마이크를 먼저 꺼버린 경우 오답으로 안전 결산 원복
+            if (isCardLock && processingTargetIndex !== null) {
+                appLog('System', `#${processingTargetIndex + 1} 스트림 자연 종료 감지 ➡️ 오답 자동 결산`);
+                executeFinalJudgment(processingTargetIndex, false);
+            }
         },
         onError: function(error) {
             isListening = false; 
