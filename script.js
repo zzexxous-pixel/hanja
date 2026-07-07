@@ -382,14 +382,10 @@ function handleToggleVoiceQuiz(index) {
         clearTimeout(forcedTimeoutTimers[index]);
     }
 
-    // [기획 스펙] 녹음 시작 후 아무 말도 하지 않으면 5초 후 마이크 종료 및 무해한 원복 실행
+    // [기획 스펙] 녹음 시작 후 아무 말도 하지 않으면 5초 후 마이크 자동 종료 및 오답 결산 처리
     forcedTimeoutTimers[index] = setTimeout(() => {
-        appLog('System', `#${index + 1} 5초 무음 시간만료 가드 ➡️ 마이크 자동 안전 폐쇄`);
-        speechEngine.abort();
-        updateCardUIState(index, 'idle');
-        isCardLock = false;
-        processingTargetIndex = null;
-        evaluationTargetIndex = null;
+        appLog('System', `#${index + 1} 5초 무음 시간만료 가드 ➡️ 오답 수렴 처리`);
+        executeFinalJudgment(index, false);
     }, 5000);
 
     speechEngine.start();
