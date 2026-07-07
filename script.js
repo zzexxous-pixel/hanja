@@ -4,72 +4,7 @@ const savedHunSize = localStorage.getItem('hun_size') || 17;
 document.documentElement.style.setProperty('--hanja-size', savedHanjaSize + 'px');
 document.documentElement.style.setProperty('--hun-size', savedHunSize + 'px');
 
-// === 한글 자모 분해 및 발음 유사도 판정 엔진 알고리즘 ===
-const CHOSUNG = ["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
-const JUNGSEONG = ["ㅏ","ㅐ","ㅑ","ㅒ","ㅓ","ㅔ","ㅕ","ㅖ","ㅗ","ㅘ","ㅙ","ㅚ","ㅛ","ㅜ","ㅝ","ㅞ","ㅟ","ㅠ","ㅡ","ㅢ","ㅣ"];
-const JONGSEONG = ["","ㄱ","ㄲ","ㄳ","ㄴ","ㄴㅈ","ㄴㅎ","ㄷ","ㄹ","ㄹㄱ","ㄹㅁ","ㄹㅂ","ㄹㅅ","ㄹㅌ","ㄹㅍ","ㄹㅎ","ㅁ","ㅂ","ㅄ","ㅅ","ㅆ","ㅇ","ㅈ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
-
-function disassembleKorean(str) {
-    let result = "";
-    for (let i = 0; i < str.length; i++) {
-        const charCode = str.charCodeAt(i);
-        if (charCode >= 44032 && charCode <= 55203) {
-            const hangulCode = charCode - 44032;
-            const choIndex = Math.floor(hangulCode / 588);
-            const jungIndex = Math.floor((hangulCode - (choIndex * 588)) / 28);
-            const jongIndex = hangulCode % 28;
-            result += CHOSUNG[choIndex] + JUNGSEONG[jungIndex] + JONGSEONG[jongIndex];
-        } else {
-            if (str[i] !== ' ') {
-                result += str[i];
-            }
-        }
-    }
-    return result;
-}
-
-// [최적화 완료] 2차원 매트릭스 배열의 동적 할당을 파괴하고, 2개의 1차원 행 포인터만 스왑하여 GC 부하 차단 
-function getLevenshteinDistance(a, b) {
-    if (a.length === 0) return b.length;
-    if (b.length === 0) return a.length;
-
-    let prevRow = new Array(a.length + 1);
-    let currRow = new Array(a.length + 1);
-
-    for (let j = 0; j <= a.length; j++) {
-        prevRow[j] = j;
-    }
-
-    for (let i = 1; i <= b.length; i++) {
-        currRow[0] = i;
-        for (let j = 1; j <= a.length; j++) {
-            if (b.charAt(i - 1) === a.charAt(j - 1)) {
-                currRow[j] = prevRow[j - 1];
-            } else {
-                currRow[j] = Math.min(
-                    prevRow[j - 1] + 1,
-                    Math.min(currRow[j - 1] + 1, prevRow[j] + 1)
-                );
-            }
-        }
-        // 행 포인터 고속 고정 스왑으로 메모리 재할당 억제
-        let temp = prevRow;
-        prevRow = currRow;
-        currRow = temp;
-    }
-    return prevRow[a.length];
-}
-
-function calculatePhoneticSimilarity(wordA, wordB) {
-    const jamoA = disassembleKorean(wordA);
-    const jamoB = disassembleKorean(wordB);
-    const maxLength = Math.max(jamoA.length, jamoB.length);
-    if (maxLength === 0) return 1.0;
-    const distance = getLevenshteinDistance(jamoA, jamoB);
-    return 1 - (distance / maxLength);
-}
-
-// === 2 상태 관리 ===
+// === 2. 상태 관리 ===
 let activeTab = 1;
 let preFavoriteTab = 1; 
 let isQuizMode = false;
@@ -98,8 +33,8 @@ let hasMoved = false;
 let titleClickCount = 0;
 let titleClickTimer = null;
 
-// 카드별 독립형 인프라 맵 변수 (기존 audioCtx 삭제 및 이전 완료)
-const forcedTimeoutTimers = {}; 
+// Web Audio API 주파수 합성 및 [개정] 카드별 독립형 인프라 맵 변수
+const forcedTimeoutTimers = {}; // 카드별 독립 만료 스케줄러 보관 맵 객체
 let latestRawTranscript = "";  
 let isCardLock = false;        // ➡️ [추가] 한자 카드 루틴 종결 전 연타 무력화용 전역 락 변수
 
@@ -391,10 +326,8 @@ function executeFinalJudgment(index, isCorrect) {
         delete forcedTimeoutTimers[index];
     }
 
-    // ➡️ [인프라 개선] O,X 판정이 종결되었으므로 마이크 스트림 즉시 파기 및 하드웨어 자원 강제 즉각 회수
-    if (recognition) {
-        try { recognition.abort(); } catch (err) {}
-    }
+    // ➡️ [모듈화 반영] O,X 판정이 결산되었으므로 마이크 스트림 강제 폐쇄 및 자원 즉각 회수 위임
+    speechEngine.abort();
     
     if (isCorrect) {
         audioEngine.playCorrect(); // ➡️ v2.1 모듈 위임 적용
@@ -405,117 +338,61 @@ function executeFinalJudgment(index, isCorrect) {
         updateCardUIState(index, 'final', 'incorrect');
     }
 
-    // ➡️ [추가] 한 글자의 루틴(O, X 판정 애니메이션 및 사운드 포함)이 완전히 끝났으므로 락 해제
+    // 루틴 동작 완료에 따른 전역 가드 인덱스 일제 클리어 해제
     isCardLock = false;
+    processingTargetIndex = null;
+    evaluationTargetIndex = null;
 }
 
 // ==========================================================================
-// === 카드별 독립형 0ms 즉시 차단 음성 입력 제어 프레임워크 ===
+// === [UX 전면 개편] v2.1 클릭 토글형 / 5초 무음 자동 원복 입력 라이브러리 ===
 // ==========================================================================
 
-function handleVoiceStart(e) {
-    if (!isQuizMode) return; 
-    if (isCardLock) return; // ➡️ [추가] 이전 카드의 판정이 끝나지 않았다면 다다닥 연타 입력을 원천 무시 차단
-
-    // 중간 한자 영역 가로 전체([data-action="open-modal"])를 터치했는지 정밀 판단
-    const hanjaZone = e.target.closest('[data-action="open-modal"]');
-    if (!hanjaZone) return; 
-
-    const cardWrapper = hanjaZone.closest('.hanja-card-wrapper');
-    if (!cardWrapper) return;
-    
-    const index = parseInt(cardWrapper.getAttribute('data-index'), 10);
-    
-    // [순서 교정 버그 해결] 시스템 락을 걸기 전에 이미 합격한 한자인지 먼저 검사하여 조기 리턴 (교착 방지)
+function handleToggleVoiceQuiz(index) {
     if (solvedHanjas.has(index)) return;
-    
-    // 타겟팅에 성공하여 카드 조작이 시작되었으므로 즉시 글로벌 시스템 락 작동
-    isCardLock = true;
 
-    // [기획 요구사항] 불필요한 300ms 홀드 지연 타이머 찌꺼기 완전 폐기 및 0ms 즉시 시동
+    // [기획 스펙] 녹음 중 해당 한자를 한 번 더 클릭(터치)하면 어떠한 패널티 없이 녹음 즉시 취소 종료
+    if (isCardLock && processingTargetIndex === index) {
+        appLog('System', `#${index + 1} 재클릭 수동 차단 ➡️ 마이크 스트림 파괴 및 대기 원복`);
+        if (forcedTimeoutTimers[index]) {
+            clearTimeout(forcedTimeoutTimers[index]);
+            delete forcedTimeoutTimers[index];
+        }
+        speechEngine.abort();
+        updateCardUIState(index, 'idle');
+        isCardLock = false;
+        processingTargetIndex = null;
+        evaluationTargetIndex = null;
+        return;
+    }
+
+    // 다른 한자가 작동 중인 동안 발생하는 연타 입력 원천 가드 무시
+    if (isCardLock) return;
+
+    // [기획 스펙] 한자를 가볍게 한 번 클릭(터치)하면 시스템 락인 및 녹음 활성화
+    isCardLock = true;
+    processingTargetIndex = index;
     evaluationTargetIndex = index;
-    processingTargetIndex = index; // ➡️ [버그 수정] 비동기 결과 리스너와의 동기화를 위해 핵심 타겟 인덱스 락인 매립
     latestRawTranscript = "";
 
-    const touch = e.touches ? e.touches[0] : e;
-    touchStartPos = { x: touch.clientX, y: touch.clientY };
-    hasMoved = false;
+    updateCardUIState(index, 'touch');
+    appLog('System', `한자 터치 토글 시동 ➡️ #${index + 1}`);
 
-    appLog('System', `한자 터치 즉시 시동 ➡️ #${index + 1}`);
-
-    // [레이스 컨디션 해결] 해당 카드에 돌고 있던 이전 스케줄러 타이머가 있다면 독립적으로 선제 폐기
     if (forcedTimeoutTimers[index]) {
         clearTimeout(forcedTimeoutTimers[index]);
-        delete forcedTimeoutTimers[index];
     }
 
-    // [대안 폐기 반영] 마이크 Keep-Alive 무전기식 재활용 로직을 전면 삭제하고 매 터치다운마다 순수 독립 세션 기동
-    updateCardUIState(index, 'touch');
-    if (recognition) {
-        try {
-            // 하드웨어 드라이버 데드락 방지 가드: 기존에 돌고 있던 세션이 있다면 확실하게 크래시 방지용 stop 선제 차단
-            recognition.stop(); 
-            recognition.start();
-        } catch (err) {
-            // 이미 켜져 있는 비동기 스레드 보완용 안전 우회
-            try { recognition.start(); } catch(e){}
-        }
-    }
-}
-
-function handleVoiceMove(e) {
-    if (!isQuizMode || evaluationTargetIndex === null) return;
-
-    const touch = e.touches ? e.touches[0] : e;
-    const dx = touch.clientX - touchStartPos.x;
-    const dy = touch.clientY - touchStartPos.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
-    if (distance > 10) {
-        hasMoved = true;
-        const targetIdx = evaluationTargetIndex;
+    // [기획 스펙] 녹음 시작 후 아무 말도 하지 않으면 5초 후 마이크 종료 및 무해한 원복 실행
+    forcedTimeoutTimers[index] = setTimeout(() => {
+        appLog('System', `#${index + 1} 5초 무음 시간만료 가드 ➡️ 마이크 자동 안전 폐쇄`);
+        speechEngine.abort();
+        updateCardUIState(index, 'idle');
+        isCardLock = false;
+        processingTargetIndex = null;
         evaluationTargetIndex = null;
-        
-        updateCardUIState(targetIdx, 'idle');
-        if (recognition) {
-            try { recognition.stop(); } catch(err){}
-        }
-        appLog('System', `스크롤 이탈 감지 ➡️ #${targetIdx + 1} 마이크 세션 즉시 파괴`);
+    }, 5000);
 
-        isCardLock = false; // ➡️ [추가] 채점 세션에 진입하지 않고 이탈했으므로 시스템 락을 안전하게 조기 해제
-    }
-}
-
-function handleVoiceEnd(e) {
-    if (!isQuizMode || evaluationTargetIndex === null) return;
-    
-    const index = evaluationTargetIndex;
-    evaluationTargetIndex = null;
-
-    // ➡️ [초단음 버퍼 보존] 손을 떼더라도 마이크를 강제로 끄지 않고 구글 자연 종료 규격에 맡김 (stop 제거)
-    /*// [개정] 손을 떼는 순간 구글 서버 임계치 대기 없이 즉각적으로 하드웨어 오디오 스트림 수집 영구 차단 폐쇄
-    if (recognition) {
-        try { recognition.stop(); } catch(err){}
-    }*/
-
-    // 손가락을 뗀 시점에 실시간 매칭으로 아직 정답 버퍼(⭕)를 통과하지 못한 카드만 독립 채점 스케줄러 진입
-    const liveCardWrapper = document.querySelector(`.hanja-card-wrapper[data-index="${index}"]`);
-    const isAlreadyPassed = liveCardWrapper && liveCardWrapper.classList.contains('card-final-correct');
-
-    if (!isAlreadyPassed) {
-        updateCardUIState(index, 'checking');
-        appLog('System', `손떼기 완료 ➡️ #${index + 1} 독립 채점 세션 진입 (1.2초 만료 카운트다운)`);
-        
-        // [클로저 스냅샷 락인] 변수가 뒤섞이지 않게 index 번호를 고유 샌드박스로 고정 결산
-        forcedTimeoutTimers[index] = setTimeout(((targetIdx) => {
-            return () => {
-                const checkWrapper = document.querySelector(`.hanja-card-wrapper[data-index="${targetIdx}"]`);
-                if (checkWrapper && !checkWrapper.classList.contains('card-final-correct')) {
-                    executeFinalJudgment(targetIdx, false);
-                }
-            };
-        })(index), 1200);
-    }
+    speechEngine.start();
 }
 
 let currentVoiceHanja = '';
@@ -623,73 +500,6 @@ function appLog(category, message) {
     consoleBody.scrollTop = consoleBody.scrollHeight;
 }
 
-// === SpeechRecognition 순수 실시간 단발성 분석 엔진 ===
-if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    recognition = new SpeechRecognition();
-    recognition.lang = 'ko-KR';
-    // [패러다임 전환 완수] 불필요한 연속 누적 문장 기능을 파괴하여 event.resultIndex 가 항상 0번인 순수 세션 수립
-    recognition.continuous = false;     
-    recognition.interimResults = true;  
-    recognition.maxAlternatives = 1;
-
-    recognition.onstart = function() {
-        isListening = true;
-        // 글로벌 보존 타겟 바인딩 검증 후 실시간 펄스 인젝션
-        const activeIdx = evaluationTargetIndex !== null ? evaluationTargetIndex : processingTargetIndex;
-        if (activeIdx !== null) {
-            updateCardUIState(activeIdx, 'active');
-            appLog('System', `🎙️ 마이크 세션 독립 시동 완료 ➡️ #${activeIdx + 1}`);
-        }
-    };
-
-    recognition.onresult = function(event) {
-        if (processingTargetIndex === null) return;
-        if (solvedHanjas.has(processingTargetIndex)) return; 
-
-        // continuous가 false이므로 인덱스 0번 트랙의 텍스트 스트림 정보만 청정하게 결합
-        let currentTranscript = event.results[0][0].transcript;
-        let isFinalResult = event.results[event.results.length - 1].isFinal;
-
-        if (currentTranscript) {
-            latestRawTranscript = currentTranscript;
-
-            const cleanSpoken = currentTranscript.replace(/[\.\?\!\,\s]+/g, '');
-            const cleanTarget = hanjaData[processingTargetIndex].m.replace(/\s+/g, '');
-            const similarity = calculatePhoneticSimilarity(cleanSpoken, cleanTarget);
-
-            if (similarity >= 0.6) {
-                // 실시간 도달 순간 즉시 하이패스 정답 처리 집행
-                executeFinalJudgment(processingTargetIndex, true);
-            } else if (isFinalResult) {
-                appLog('Speech', `마감 프레임 패킷 도착 (일치율: ${Math.round(similarity * 100)}%)`);
-                // 이미 손가락을 뗐고 만료 스케줄러가 구동 중인 상태에서 최종 오답 확정 수신 시 결산
-                if (evaluationTargetIndex === null && forcedTimeoutTimers[processingTargetIndex]) {
-                    executeFinalJudgment(processingTargetIndex, false);
-                }
-            } else {
-                if (evaluationTargetIndex !== null) {
-                    appLog('Speech', `🎙️ 실시간 분석 중: "${cleanSpoken}" (현재 일치율: ${Math.round(similarity * 100)}%)`);
-                }
-            }
-        }
-    };
-
-    recognition.onend = function() { 
-        isListening = false; 
-        appLog('System', '마이크 채널 오디오 하드웨어 스트림 폐쇄 가동 완료');
-    };
-
-    recognition.onerror = function(event) { 
-        isListening = false; 
-        if (event.error === 'aborted') {
-            appLog('System', '연타 처리를 위한 구형 기기 오디오 스트림 오프라인 정렬.');
-            return;
-        }
-        appLog('Error', '음성 인식 인프라 하드웨어 장애 감지: ' + (event.error || 'unknown'));
-    };
-}
-
 // === 4. 부팅 통합 바인딩 관리자 ===
 window.onload = function() {
     appLog('System', '4급 배정한자 플랫폼 학습 엔진 초기화 가동 (공식 버전: {{APP_VERSION}})');
@@ -701,14 +511,73 @@ window.onload = function() {
     const mainContainer = document.getElementById('table-view-container');
     if (!mainContainer) return;
 
-    mainContainer.addEventListener('mousedown', handleVoiceStart);
-    mainContainer.addEventListener('mousemove', handleVoiceMove);
-    mainContainer.addEventListener('mouseup', handleVoiceEnd);
-    mainContainer.addEventListener('mouseleave', handleVoiceEnd);
+    // ➡️ [최적화 완수] 꾹 누르는 동작 관련 구형 이벤트 리스너(pointerdown/move/up/cancel/leave) 레이어 전체 소멸 격하
 
-    mainContainer.addEventListener('touchstart', handleVoiceStart, { passive: true });
-    mainContainer.addEventListener('touchmove', handleVoiceMove, { passive: true });
-    mainContainer.addEventListener('touchend', handleVoiceEnd, { passive: true });
+    // [모듈 이식 완료] 인프라 분리 규격에 따른 독립 스피치 엔진 훅 바인딩 수립
+    speechEngine.init({
+        onStart: function() {
+            isListening = true;
+            const activeIdx = processingTargetIndex;
+            if (activeIdx !== null) {
+                updateCardUIState(activeIdx, 'active');
+                appLog('System', `🎙️ 마이크 세션 독립 시동 완료 ➡️ #${activeIdx + 1}`);
+            }
+        },
+        onResult: function(currentTranscript, isFinalResult) {
+            if (processingTargetIndex === null) return;
+            if (solvedHanjas.has(processingTargetIndex)) return; 
+    
+            if (currentTranscript) {
+                latestRawTranscript = currentTranscript;
+    
+                // [기획 스펙] 아이가 말을 시작하면 최초 부여되었던 5초 무음 자동원복 스케줄러 타이머를 안전하게 철회 해제
+                if (forcedTimeoutTimers[processingTargetIndex]) {
+                    clearTimeout(forcedTimeoutTimers[processingTargetIndex]);
+                    delete forcedTimeoutTimers[processingTargetIndex];
+                }
+    
+                const cleanSpoken = currentTranscript.replace(/[\.\?\!\,\s]+/g, '');
+                const cleanTarget = hanjaData[processingTargetIndex].m.replace(/\s+/g, '');
+                
+                // 위임된 인프라 모듈의 순수 연산 엔진 호출
+                const similarity = speechEngine.calculatePhoneticSimilarity(cleanSpoken, cleanTarget);
+    
+                if (similarity >= 0.6) {
+                    executeFinalJudgment(processingTargetIndex, true);
+                } else if (isFinalResult) {
+                    appLog('Speech', `마감 프레임 패킷 도착 (일치율: ${Math.round(similarity * 100)}%)`);
+                    // 말을 하였으나 틀린 발음 상태로 확정 최종 패킷이 떨어질 시 즉각 결산 종료
+                    executeFinalJudgment(processingTargetIndex, false);
+                } else {
+                    appLog('Speech', `🎙️ 실시간 분석 중: "${cleanSpoken}" (현재 일치율: ${Math.round(similarity * 100)}%)`);
+                }
+            }
+        },
+        onEnd: function() {
+            isListening = false; 
+            appLog('System', '마이크 채널 오디오 하드웨어 스트림 폐쇄 가동 완료');
+        },
+        onError: function(error) {
+            isListening = false; 
+            if (error === 'aborted') {
+                appLog('System', '하드웨어 리셋 신호 감지.');
+                return;
+            }
+            appLog('Error', '음성 인식 인프라 장애 감지: ' + (error || 'unknown'));
+            
+            // 예외 런타임 발생 시 무한 정체를 막기 위한 완전 가드 초기화 배치
+            if (processingTargetIndex !== null) {
+                if (forcedTimeoutTimers[processingTargetIndex]) {
+                    clearTimeout(forcedTimeoutTimers[processingTargetIndex]);
+                    delete forcedTimeoutTimers[processingTargetIndex];
+                }
+                updateCardUIState(processingTargetIndex, 'idle');
+                isCardLock = false;
+                processingTargetIndex = null;
+                evaluationTargetIndex = null;
+            }
+        }
+    });
 
     mainContainer.addEventListener('click', function(event) {
         const bookmarkBtn = event.target.closest('[data-action="toggle-bookmark"]');
@@ -737,10 +606,13 @@ window.onload = function() {
         const hanjaCell = event.target.closest('[data-action="open-modal"]');
         if (hanjaCell) {
             event.stopPropagation();
+            const index = parseInt(hanjaCell.getAttribute('data-index'), 10);
+            
             if (isQuizMode) {
+                // ➡️ [기획 개편] 퀴즈 모드일 때 가볍게 원터치 하면 정의된 토글 녹음 핸들러로 파이프 연결
+                handleToggleVoiceQuiz(index);
                 return; 
             }
-            const index = parseInt(hanjaCell.getAttribute('data-index'), 10);
             openModal(index);
             return;
         }
@@ -765,7 +637,7 @@ window.onload = function() {
                 appLog('System', '퀴즈 모드 해제 ➡️ 일반 열람 대기 상태');
                 
                 solvedHanjas.clear();
-                isCardLock = false; // ➡️ [승인 반영] 일반 모드 복귀 시 시스템 인터랙션 락 강제 초기화 예외 가드 배치
+                isCardLock = false; 
 
                 // 모든 독립 타이머 원천 파괴
                 Object.keys(forcedTimeoutTimers).forEach(key => {
@@ -787,6 +659,8 @@ window.onload = function() {
                         });
                     }
                 }
+                processingTargetIndex = null;
+                evaluationTargetIndex = null;
                 switchTab(activeTab);
             }
         } else if (action === 'close-modal') {
@@ -808,7 +682,6 @@ window.onload = function() {
         if (consoleBody) consoleBody.innerHTML = '';
     });
     document.getElementById('console-close-btn').addEventListener('click', () => {
-        document.getElementById('dev-console').classList.add('hidden/암묵적 가드 무력화');
         document.getElementById('dev-console').classList.add('hidden');
     });
 };
