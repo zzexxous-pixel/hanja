@@ -1,20 +1,14 @@
 // ==========================================================================
-// === 배정한자 마스터 플랫폼 v2.1 음성 인식 독립 가동 모듈 (speechEngine.js) ===
+// === 음성 인식 및 채점 인프라 모듈 (speechEngine.js) ===
 // ==========================================================================
 
 const speechEngine = {
     recognition: null,
     isListening: false,
-    
-    // 외부 UI 컨트롤러(script.js)와 통신하기 위한 이벤트 훅 맵 객체
-    callbacks: {
-        onStart: null,
-        onResult: null,
-        onEnd: null,
-        onError: null
-    },
+    silenceTimer: null, // 5초 무음 시간만료 제어용 내부 타이머 인스턴스 홀더
+    options: null,      // 실행 시점마다 동적으로 주입받는 콜백 및 사양 객체 적재소
 
-    // 한글 자모 분해 알고리즘 상수 데이터
+    // 한글 자모 분해 알고리즘 고정 데이터
     CHOSUNG: ["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"],
     JUNGSEONG: ["ㅏ","ㅐ","ㅑ","ㅒ","ㅓ","ㅔ","ㅕ","ㅖ","ㅗ","ㅘ","ㅙ","ㅚ","ㅛ","ㅜ","ㅝ","ㅞ","ㅟ","ㅠ","ㅡ","ㅢ","ㅣ"],
     JONGSEONG: ["","ㄱ","ㄲ","ㄳ","ㄴ","ㄴㅈ","ㄴㅎ","ㄷ","ㄹ","ㄹㄱ","ㄹㅁ","ㄹㅂ","ㄹㅅ","ㄹㅌ","ㄹㅍ","ㄹㅎ","ㅁ","ㅂ","ㅄ","ㅅ","ㅆ","ㅇ","ㅈ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"],
@@ -80,10 +74,16 @@ const speechEngine = {
         return 1 - (distance / maxLength);
     },
 
-    // 인프라 초기화 및 Web Speech API 네이티브 드라이버 인젝션
-    init(userCallbacks = {}) {
-        this.callbacks = { ...this.callbacks, ...userCallbacks };
+    // 내부 자원 비동기 스케줄러 청소 함수
+    cleanup() {
+        if (this.silenceTimer) {
+            clearTimeout(this.silenceTimer);
+            this.silenceTimer = null;
+        }
+    },
 
+    // 인프라 초기화 및 Web Speech API 기본 파이프라인 정렬
+    init() {
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             this.recognition = new SpeechRecognition();
@@ -92,45 +92,98 @@ const speechEngine = {
             this.recognition.interimResults = true;  
             this.recognition.maxAlternatives = 1;
 
-            // 하드웨어 오디오 스트림 채널 개방 완료 이벤트
+            // 하드웨어 스트림 채널 개방 성공 리스너
             this.recognition.onstart = () => {
                 this.isListening = true;
-                if (this.callbacks.onStart) {
-                    this.callbacks.onStart();
+                if (this.options && this.options.onStart) {
+                    this.options.onStart();
                 }
             };
 
-            // 구글 음성 인식 패킷 스트림 수신 이벤트
+            // 음성 데이터 실시간 분석 및 내부 채점 독점 실행 리스너
             this.recognition.onresult = (event) => {
+                if (!this.options) return;
+
                 let currentTranscript = event.results[0][0].transcript;
                 let isFinalResult = event.results[event.results.length - 1].isFinal;
-                
-                if (this.callbacks.onResult) {
-                    this.callbacks.onResult(currentTranscript, isFinalResult);
+
+                if (currentTranscript) {
+                    // [버퍼 확보] 아이가 말을 시작하면 최초 기동되었던 무음 타임아웃 타이머를 즉각 해제 취소
+                    this.cleanup();
+
+                    const cleanSpoken = currentTranscript.replace(/[\.\?\!\,\s]+/g, '');
+                    const cleanTarget = this.options.targetText.replace(/\s+/g, '');
+                    
+                    // 내부 자체 알고리즘 연산 가동
+                    const similarity = this.calculatePhoneticSimilarity(cleanSpoken, cleanTarget);
+
+                    if (similarity >= this.options.threshold) {
+                        // 통과 임계치 도달 즉시 락 풀고 성공 콜백 트리거 및 세션 파괴
+                        const cb = this.options.onSuccess;
+                        this.cleanup();
+                        this.options = null;
+                        if (cb) cb();
+                        this.abort();
+                    } else if (isFinalResult) {
+                        // 최종 마감 패킷이 도착했으나 통과하지 못했으므로 실패 콜백 트리거 및 세션 파괴
+                        const cb = this.options.onFail;
+                        this.cleanup();
+                        this.options = null;
+                        if (cb) cb();
+                        this.abort();
+                    } else {
+                        // 실시간 분석 피드백 중계 로그 (외부 리포팅 연동용)
+                        if (typeof appLog === 'function') {
+                            appLog('Speech', `🎙️ 실시간 분석 중: "${cleanSpoken}" (현재 일치율: ${Math.round(similarity * 100)}%)`);
+                        }
+                    }
                 }
             };
 
-            // 하드웨어 스트림 폐쇄 완료 이벤트
+            // 하드웨어 스트림 오프라인 폐쇄 리스너
             this.recognition.onend = () => {
                 this.isListening = false;
-                if (this.callbacks.onEnd) {
-                    this.callbacks.onEnd();
+                
+                // [자연 종료 대응] 채점이 매듭지어지기 전에 브라우저 무음 절전 기전이 먼저 마이크를 꺼버린 경우 오답 수렴 처리
+                if (this.options) {
+                    const cb = this.options.onFail;
+                    this.cleanup();
+                    this.options = null;
+                    if (cb) cb();
                 }
             };
 
-            // 기기 오디오 하드웨어 또는 권한 거부 장애 발생 이벤트
+            // 드라이버 하드웨어 장애 리스너
             this.recognition.onerror = (event) => {
                 this.isListening = false;
-                if (this.callbacks.onError) {
-                    this.callbacks.onError(event.error);
+                if (this.options) {
+                    const cb = this.options.onFail;
+                    this.cleanup();
+                    this.options = null;
+                    if (cb) cb();
                 }
             };
         }
     },
 
-    // 마이크 개방 시동 명령
-    start() {
+    // 동적 사양 주입형 마이크 시동 제어 메서드
+    start(runOptions = {}) {
         if (!this.recognition) return;
+        
+        this.cleanup();
+        this.options = runOptions;
+
+        // 무음 제한 타이머 가동 스케줄링 (아무 말도 하지 않을 시 엔진 스스로 오답 트리거 집행)
+        this.silenceTimer = setTimeout(() => {
+            if (this.options) {
+                const cb = this.options.onFail;
+                this.cleanup();
+                this.options = null;
+                if (cb) cb();
+                this.abort();
+            }
+        }, runOptions.timeoutMs || 5000);
+
         try {
             this.recognition.stop(); 
             this.recognition.start();
@@ -139,24 +192,34 @@ const speechEngine = {
         }
     },
 
-    // 마이크 수집 정상 중단 명령
+    // 부드러운 오디오 수집 중단 메서드
     stop() {
         if (!this.recognition) return;
         try {
-            this.recognition.stop(); 
-            this.recognition.start();
+            this.recognition.stop();
         } catch (err) {
-            try { this.recognition.start(); } catch(e){}
+            console.error("음성인식 stop 실패:", err);
         }
     },
 
-    // 마이크 스트림 강제 파괴 및 자원 즉시 반환 명령
+    // 사용자의 고의적 재클릭에 의한 수동 즉시 강제 취소 메서드
+    cancel() {
+        if (this.options) {
+            const cb = this.options.onCancel;
+            this.cleanup();
+            this.options = null;
+            if (cb) cb();
+        }
+        this.abort();
+    },
+
+    // 하드웨어 즉시 단절 및 스트림 전면 파괴 메서드
     abort() {
         if (!this.recognition) return;
         try {
             this.recognition.abort();
         } catch (err) {
-            console.error("음성인식 abort 실패:", err);
+            // 이중 호출 예외 무시 가드
         }
     }
 };

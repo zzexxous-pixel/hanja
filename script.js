@@ -20,23 +20,17 @@ let solvedHanjas = new Set();
 const tabCache = {};
 let isFavoritesDirty = true; // 즐겨찾기 무한 Reflow 방지용 Dirty 플래그
 
-// 음성 제어 및 모바일 스크롤 스레스홀드 보정 변수
+// 음성 제어 매핑용 백업 포인터 변수
 let evaluationTargetIndex = null;
-let processingTargetIndex = null; // 암묵적 전역 변수 오염 해결을 위한 명시적 스코프 선언
+let processingTargetIndex = null; 
 let isListening = false;
-let recognition = null;
-
-let touchStartPos = { x: 0, y: 0 };
-let hasMoved = false;
 
 // 개발자 비밀 디버그 콘솔 트리거 변수
 let titleClickCount = 0;
 let titleClickTimer = null;
 
-// Web Audio API 주파수 합성 및 [개정] 카드별 독립형 인프라 맵 변수
-const forcedTimeoutTimers = {}; // 카드별 독립 만료 스케줄러 보관 맵 객체
-let latestRawTranscript = "";  
-let isCardLock = false;        // ➡️ [추가] 한자 카드 루틴 종결 전 연타 무력화용 전역 락 변수
+// 카드별 인터랙션 동기화 전역 락 플래그
+let isCardLock = false;        
 
 function saveBookmarks() {
     localStorage.setItem('hanja_bookmarks', JSON.stringify(bookmarks));
@@ -289,7 +283,6 @@ function handleHunClick(tdElement, globalIdx) {
     }
 }
 
-// === 6단계 동적 카드 상태 머신 조작 엔진 ===
 function updateCardUIState(index, state, passType) {
     const cardWrapper = document.querySelector(`.hanja-card-wrapper[data-index="${index}"]`);
     if (!cardWrapper) return;
@@ -319,76 +312,74 @@ function updateCardUIState(index, state, passType) {
     }
 }
 
-// [개정] 클로저 변수를 활용하여 카드별로 완전히 분리 구동되는 오답 결산 처리기
+// 순수 전경 UI 결과 도출 및 오디오 매핑용 결산 유닛 핸들러
 function executeFinalJudgment(index, isCorrect) {
-    if (forcedTimeoutTimers[index]) {
-        clearTimeout(forcedTimeoutTimers[index]);
-        delete forcedTimeoutTimers[index];
-    }
-
-    // ➡️ [모듈화 반영] O,X 판정이 결산되었으므로 마이크 스트림 강제 폐쇄 및 자원 즉각 회수 위임
-    speechEngine.abort();
-    
     if (isCorrect) {
-        audioEngine.playCorrect(); // ➡️ v2.1 모듈 위임 적용
+        audioEngine.playCorrect(); 
         updateCardUIState(index, 'final', 'correct');
         toggleSolvedState(index, true);
     } else {
-        audioEngine.playIncorrect(); // ➡️ v2.1 모듈 위임 적용
+        audioEngine.playIncorrect(); 
         updateCardUIState(index, 'final', 'incorrect');
     }
 
-    // 루틴 동작 완료에 따른 전역 가드 인덱스 일제 클리어 해제
+    // 카드 한 판의 상태 표출이 종결되었으므로 제어 변수 초기화 해제
     isCardLock = false;
     processingTargetIndex = null;
     evaluationTargetIndex = null;
 }
 
 // ==========================================================================
-// === [UX 전면 개편] v2.1 클릭 토글형 / 5초 무음 자동 원복 입력 라이브러리 ===
+// === [UX 개편 완료] v2.4 동적 주입 스펙 연동 토글 클릭형 입력 라이브러리 ===
 // ==========================================================================
 
 function handleToggleVoiceQuiz(index) {
     if (solvedHanjas.has(index)) return;
 
-    // [기획 스펙] 녹음 중 해당 한자를 한 번 더 클릭(터치)하면 어떠한 패널티 없이 녹음 즉시 취소 종료
+    // [취소 분기] 녹음 가동 중 동일 한자 카드 재클릭 시, 수동 파괴 콜백 위임 호출
     if (isCardLock && processingTargetIndex === index) {
-        appLog('System', `#${index + 1} 재클릭 수동 차단 ➡️ 마이크 스트림 파괴 및 대기 원복`);
-        if (forcedTimeoutTimers[index]) {
-            clearTimeout(forcedTimeoutTimers[index]);
-            delete forcedTimeoutTimers[index];
-        }
-        speechEngine.abort();
-        updateCardUIState(index, 'idle');
-        isCardLock = false;
-        processingTargetIndex = null;
-        evaluationTargetIndex = null;
+        appLog('System', `#${index + 1} 재클릭 취소 요구 수용 ➡️ 마이크 무력화 가동`);
+        speechEngine.cancel();
         return;
     }
 
-    // 다른 한자가 작동 중인 동안 발생하는 연타 입력 원천 가드 무시
+    // 다른 한자 카드가 수집 채널을 점유하고 있다면 연타 완전 차단 가드
     if (isCardLock) return;
 
-    // [기획 스펙] 한자를 가볍게 한 번 클릭(터치)하면 시스템 락인 및 녹음 활성화
+    // 정상 상태 카드의 단발성 토글 클릭 성공에 따른 타겟 스코프 락인 획정
     isCardLock = true;
     processingTargetIndex = index;
     evaluationTargetIndex = index;
-    latestRawTranscript = "";
 
     updateCardUIState(index, 'touch');
     appLog('System', `한자 터치 토글 시동 ➡️ #${index + 1}`);
 
-    if (forcedTimeoutTimers[index]) {
-        clearTimeout(forcedTimeoutTimers[index]);
-    }
-
-    // [기획 스펙] 녹음 시작 후 아무 말도 하지 않으면 5초 후 마이크 자동 종료 및 오답 결산 처리
-    forcedTimeoutTimers[index] = setTimeout(() => {
-        appLog('System', `#${index + 1} 5초 무음 시간만료 가드 ➡️ 오답 수렴 처리`);
-        executeFinalJudgment(index, false);
-    }, 5000);
-
-    speechEngine.start();
+    // [v2.4 개정] Stateless 채점 모듈 사양에 따른 비즈니스 요건 동적 주입 및 기동
+    speechEngine.start({
+        targetText: hanjaData[index].m, // 정답 대조용 텍스트 주입
+        threshold: 0.6,                // 통과 비율 60% 주입
+        timeoutMs: 5000,               // 5초 타임아웃 주입
+        onStart: function() {
+            isListening = true;
+            updateCardUIState(index, 'active');
+            appLog('System', `🎙️ 마이크 세션 독립 시동 완료 ➡️ #${index + 1}`);
+        },
+        onSuccess: function() {
+            appLog('System', `#${index + 1} 정답 판정 임계치 통과 수신 완료`);
+            executeFinalJudgment(index, true);
+        },
+        onFail: function() {
+            appLog('System', `#${index + 1} 무음 시간만료 또는 불일치 최종 오답 수신 완료`);
+            executeFinalJudgment(index, false);
+        },
+        onCancel: function() {
+            appLog('System', `#${index + 1} 사용자 수동 취소 인지 원복 완료`);
+            updateCardUIState(index, 'idle');
+            isCardLock = false;
+            processingTargetIndex = null;
+            evaluationTargetIndex = null;
+        }
+    });
 }
 
 let currentVoiceHanja = '';
@@ -502,84 +493,13 @@ window.onload = function() {
     preRenderStaticTables();
     activeFavoriteIndices = [...bookmarks];
     
+    // [인프라 드라이버 활성화] 부팅 시 스피치 엔진 고유의 내부 인터페이스 선행 할당 빌드
+    speechEngine.init();
+    
     switchTab(1);
 
     const mainContainer = document.getElementById('table-view-container');
     if (!mainContainer) return;
-
-    // ➡️ [최적화 완수] 꾹 누르는 동작 관련 구형 이벤트 리스너(pointerdown/move/up/cancel/leave) 레이어 전체 소멸 격하
-
-    // [모듈 이식 완료] 인프라 분리 규격에 따른 독립 스피치 엔진 훅 바인딩 수립
-    speechEngine.init({
-        onStart: function() {
-            isListening = true;
-            const activeIdx = processingTargetIndex;
-            if (activeIdx !== null) {
-                updateCardUIState(activeIdx, 'active');
-                appLog('System', `🎙️ 마이크 세션 독립 시동 완료 ➡️ #${activeIdx + 1}`);
-            }
-        },
-        onResult: function(currentTranscript, isFinalResult) {
-            if (processingTargetIndex === null) return;
-            if (solvedHanjas.has(processingTargetIndex)) return; 
-    
-            if (currentTranscript) {
-                latestRawTranscript = currentTranscript;
-    
-                // [기획 스펙] 아이가 말을 시작하면 최초 부여되었던 5초 무음 자동원복 스케줄러 타이머를 안전하게 철회 해제
-                if (forcedTimeoutTimers[processingTargetIndex]) {
-                    clearTimeout(forcedTimeoutTimers[processingTargetIndex]);
-                    delete forcedTimeoutTimers[processingTargetIndex];
-                }
-    
-                const cleanSpoken = currentTranscript.replace(/[\.\?\!\,\s]+/g, '');
-                const cleanTarget = hanjaData[processingTargetIndex].m.replace(/\s+/g, '');
-                
-                // 위임된 인프라 모듈의 순수 연산 엔진 호출
-                const similarity = speechEngine.calculatePhoneticSimilarity(cleanSpoken, cleanTarget);
-    
-                if (similarity >= 0.6) {
-                    executeFinalJudgment(processingTargetIndex, true);
-                } else if (isFinalResult) {
-                    appLog('Speech', `마감 프레임 패킷 도착 (일치율: ${Math.round(similarity * 100)}%)`);
-                    // 말을 하였으나 틀린 발음 상태로 확정 최종 패킷이 떨어질 시 즉각 결산 종료
-                    executeFinalJudgment(processingTargetIndex, false);
-                } else {
-                    appLog('Speech', `🎙️ 실시간 분석 중: "${cleanSpoken}" (현재 일치율: ${Math.round(similarity * 100)}%)`);
-                }
-            }
-        },
-        onEnd: function() {
-            isListening = false; 
-            appLog('System', '마이크 채널 오디오 하드웨어 스트림 폐쇄 가동 완료');
-
-            // [자연 종료 대응] 5초 만료 전, 아이가 침묵하여 브라우저가 마이크를 먼저 꺼버린 경우 오답으로 안전 결산 원복
-            if (isCardLock && processingTargetIndex !== null) {
-                appLog('System', `#${processingTargetIndex + 1} 스트림 자연 종료 감지 ➡️ 오답 자동 결산`);
-                executeFinalJudgment(processingTargetIndex, false);
-            }
-        },
-        onError: function(error) {
-            isListening = false; 
-            if (error === 'aborted') {
-                appLog('System', '하드웨어 리셋 신호 감지.');
-                return;
-            }
-            appLog('Error', '음성 인식 인프라 장애 감지: ' + (error || 'unknown'));
-            
-            // 예외 런타임 발생 시 무한 정체를 막기 위한 완전 가드 초기화 배치
-            if (processingTargetIndex !== null) {
-                if (forcedTimeoutTimers[processingTargetIndex]) {
-                    clearTimeout(forcedTimeoutTimers[processingTargetIndex]);
-                    delete forcedTimeoutTimers[processingTargetIndex];
-                }
-                updateCardUIState(processingTargetIndex, 'idle');
-                isCardLock = false;
-                processingTargetIndex = null;
-                evaluationTargetIndex = null;
-            }
-        }
-    });
 
     mainContainer.addEventListener('click', function(event) {
         const bookmarkBtn = event.target.closest('[data-action="toggle-bookmark"]');
@@ -611,7 +531,7 @@ window.onload = function() {
             const index = parseInt(hanjaCell.getAttribute('data-index'), 10);
             
             if (isQuizMode) {
-                // ➡️ [기획 개편] 퀴즈 모드일 때 가볍게 원터치 하면 정의된 토글 녹음 핸들러로 파이프 연결
+                // [기획 스펙 기동] 퀴즈 모드일 때 가볍게 한 번 클릭하면 단발성 토글 제어 파이프 연결
                 handleToggleVoiceQuiz(index);
                 return; 
             }
@@ -641,13 +561,10 @@ window.onload = function() {
                 solvedHanjas.clear();
                 isCardLock = false; 
 
-                // 모든 독립 타이머 원천 파괴
-                Object.keys(forcedTimeoutTimers).forEach(key => {
-                    clearTimeout(forcedTimeoutTimers[key]);
-                    delete forcedTimeoutTimers[key];
-                });
+                // 인프라 강제 중단 및 잔여 스레드 동시 일제 파괴
+                speechEngine.abort();
 
-                // 🔥 저사양 하드웨어 가속: 600번의 인덱스 순회 및 개별 DOM 검색을 제거하고 브라우저 네이티브 배치 클리어 가동
+                // 저사양 하드웨어 배치 최적화 리셋 가속화
                 for (let t = 1; t <= 6; t++) {
                     if (tabCache[t]) {
                         tabCache[t].querySelectorAll('.hanja-card-wrapper').forEach(cell => {
@@ -668,7 +585,7 @@ window.onload = function() {
         } else if (action === 'close-modal') {
             closeModal();
         } else if (action === 'modal-tts') {
-            audioEngine.speak(currentVoiceHun); // ➡️ v2.1 모듈 위임 적용
+            audioEngine.speak(currentVoiceHun); 
         }
     });
 
