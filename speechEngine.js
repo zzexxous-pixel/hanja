@@ -114,25 +114,23 @@ const speechEngine = {
                     const cleanSpoken = currentTranscript.replace(/[\.\?\!\,\s]+/g, '');
                     const cleanTarget = this.options.targetText.replace(/\s+/g, '');
                     
-                    // 내부 자체 알고리즘 연산 가동
                     const similarity = this.calculatePhoneticSimilarity(cleanSpoken, cleanTarget);
 
+                    // 자모 유사도가 60% 이상(>= 0.6) 도달 즉시 하이패스로 정답 통과 처리 후 스트림 파괴
                     if (similarity >= this.options.threshold) {
-                        // 통과 임계치 도달 즉시 락 풀고 성공 콜백 트리거 및 세션 파괴
                         const cb = this.options.onSuccess;
                         this.cleanup();
-                        this.options = null;
+                        this.options = null; 
                         if (cb) cb();
                         this.abort();
                     } else if (isFinalResult) {
-                        // 최종 마감 패킷이 도착했으나 통과하지 못했으므로 실패 콜백 트리거 및 세션 파괴
+                        // 최종 패킷이 떨어졌으나 임계치를 넘지 못했으므로 최종 오답 처리 후 스트림 파괴
                         const cb = this.options.onFail;
                         this.cleanup();
                         this.options = null;
                         if (cb) cb();
                         this.abort();
                     } else {
-                        // 실시간 분석 피드백 중계 로그 (외부 리포팅 연동용)
                         if (typeof appLog === 'function') {
                             appLog('Speech', `🎙️ 실시간 분석 중: "${cleanSpoken}" (현재 일치율: ${Math.round(similarity * 100)}%)`);
                         }
@@ -140,11 +138,11 @@ const speechEngine = {
                 }
             };
 
-            // 하드웨어 스트림 오프라인 폐쇄 리스너
+            // 브라우저 자연 종료(Auto-Silence) 및 하드웨어 스트림 폐쇄 리스너
             this.recognition.onend = () => {
                 this.isListening = false;
                 
-                // [자연 종료 대응] 채점이 매듭지어지기 전에 브라우저 무음 절전 기전이 먼저 마이크를 꺼버린 경우 오답 수렴 처리
+                // 5초 만료 전이라도 기기 침묵 기전 등으로 스트림이 강제 종료된 경우 오답 결산 처리 유도
                 if (this.options) {
                     const cb = this.options.onFail;
                     this.cleanup();
@@ -153,7 +151,7 @@ const speechEngine = {
                 }
             };
 
-            // 드라이버 하드웨어 장애 리스너
+            // 드라이버 하드웨어 장애 리스너 가드
             this.recognition.onerror = (event) => {
                 this.isListening = false;
                 if (this.options) {
@@ -173,7 +171,7 @@ const speechEngine = {
         this.cleanup();
         this.options = runOptions;
 
-        // 무음 제한 타이머 가동 스케줄링 (아무 말도 하지 않을 시 엔진 스스로 오답 트리거 집행)
+        // 5초 무음 타임아웃 타이머 가동 (말을 하지 않고 시간이 다 되면 안전하게 오답 결산)
         this.silenceTimer = setTimeout(() => {
             if (this.options) {
                 const cb = this.options.onFail;
@@ -192,7 +190,6 @@ const speechEngine = {
         }
     },
 
-    // 부드러운 오디오 수집 중단 메서드
     stop() {
         if (!this.recognition) return;
         try {
@@ -202,7 +199,7 @@ const speechEngine = {
         }
     },
 
-    // 사용자의 고의적 재클릭에 의한 수동 즉시 강제 취소 메서드
+    // 사용자가 작동 중 카드를 한 번 더 터치했을 때 즉시 호출되는 수동 취소 메서드
     cancel() {
         if (this.options) {
             const cb = this.options.onCancel;
@@ -219,7 +216,7 @@ const speechEngine = {
         try {
             this.recognition.abort();
         } catch (err) {
-            // 이중 호출 예외 무시 가드
+            // 중복 실행 가드 무시
         }
     }
 };

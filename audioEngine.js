@@ -1,5 +1,5 @@
 // ==========================================================================
-// === 배정한자 마스터 플랫폼 v2.1 오디오 및 TTS 독립 가동 모듈 (audioEngine.js) ===
+// === 배정한자 마스터 플랫폼 오디오 및 TTS 독립 가동 모듈 (audioEngine.js) ===
 // ==========================================================================
 
 const audioEngine = {
@@ -95,7 +95,6 @@ const audioEngine = {
             utterance.rate = 0.9;
             window.speechSynthesis.speak(utterance);
             
-            // 메인 뷰의 전역 실시간 로그 기능과 연동 가드
             if (typeof appLog === 'function') {
                 appLog('System', `TTS 훈음 음성 재생 ➡️ "${text}"`);
             }

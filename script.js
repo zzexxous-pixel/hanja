@@ -1,15 +1,12 @@
-// === 1. 초기 렌더링 설정 및 즉시 실행 로직 ===
 const savedHanjaSize = localStorage.getItem('hanja_size') || 45;
 const savedHunSize = localStorage.getItem('hun_size') || 17;
 document.documentElement.style.setProperty('--hanja-size', savedHanjaSize + 'px');
 document.documentElement.style.setProperty('--hun-size', savedHunSize + 'px');
 
-// === 2. 상태 관리 ===
 let activeTab = 1;
 let preFavoriteTab = 1; 
 let isQuizMode = false;
 
-// 로컬스토리지 기반 북마크 배열
 let bookmarks = JSON.parse(localStorage.getItem('hanja_bookmarks')) || [];
 let activeFavoriteIndices = [...bookmarks];
 
@@ -18,19 +15,16 @@ let defaultHunSizePx = parseInt(savedHunSize);
 
 let solvedHanjas = new Set();
 const tabCache = {};
-let isFavoritesDirty = true; // 즐겨찾기 무한 Reflow 방지용 Dirty 플래그
+let isFavoritesDirty = true; 
+const tabsNeedReset = new Set(); // 비노출 탭들의 JIT 리셋 관리를 위한 스케줄링 세트
 
-// 음성 제어 매핑용 백업 포인터 변수
 let evaluationTargetIndex = null;
 let processingTargetIndex = null; 
 let isListening = false;
+let isCardLock = false;        
 
-// 개발자 비밀 디버그 콘솔 트리거 변수
 let titleClickCount = 0;
 let titleClickTimer = null;
-
-// 카드별 인터랙션 동기화 전역 락 플래그
-let isCardLock = false;        
 
 function saveBookmarks() {
     localStorage.setItem('hanja_bookmarks', JSON.stringify(bookmarks));
@@ -64,7 +58,7 @@ function toggleBookmark(index, event) {
     }
     saveBookmarks();
 
-    isFavoritesDirty = true; // 데이터 변동 시 즐겨찾기 DOM 재생성 트리거
+    isFavoritesDirty = true; 
 
     updateCellStarUI(index, !isRemoving);
     updateModalStarState(index);
@@ -78,7 +72,7 @@ function updateCellStarUI(index, isStarred) {
         starWrapper.className = `star-wrapper-${index} btn-mini-icon type-star ${isStarred ? 'starred' : 'unstarred'}`;
     });
 
-    const targetTab = Math.floor(index / 100) + 1;
+    const targetTab = Math.floor(index / 50) + 1; // 50자 규격 맵핑 조정
     if (tabCache[targetTab]) {
         const cachedWrapper = tabCache[targetTab].querySelector(`.star-wrapper-${index}`);
         if (cachedWrapper) {
@@ -98,10 +92,10 @@ function updateModalStarState(index) {
 }
 
 function preRenderStaticTables() {
-    for (let t = 1; t <= 6; t++) {
-        const startIdx = (t - 1) * 100;
+    for (let t = 1; t <= 12; t++) { // 50자 단위 분할에 따라 12페이지로 분할 확장
+        const startIdx = (t - 1) * 50;
         const startIdxText = startIdx + 1;
-        const endIdx = startIdx + 100;
+        const endIdx = startIdx + 50;
         const pageData = hanjaData.slice(startIdx, endIdx).map((item, localIdx) => ({
             ...item,
             originalIdx: startIdx + localIdx
@@ -112,7 +106,7 @@ function preRenderStaticTables() {
         tableDiv.innerHTML = generateTableHTML(t, pageData, `${startIdxText} ~ ${endIdx}자`);
         tabCache[t] = tableDiv;
     }
-    appLog('System', '고정 탭 1 ~ 6 선행 렌더링 캐싱 엔진 수립 완료');
+    appLog('System', '고정 탭 1 ~ 12 선행 렌더링 캐싱 엔진 수립 완료');
 }
 
 function buildFavoritesDOM() {
@@ -136,7 +130,7 @@ function buildFavoritesDOM() {
         return tableWrapper;
     }
 
-    tableWrapper.innerHTML = generateTableHTML(7, pageData, titleLabel);
+    tableWrapper.innerHTML = generateTableHTML(13, pageData, titleLabel); // 즐겨찾기는 13번 고유 공간으로 격상
     return tableWrapper;
 }
 
@@ -144,7 +138,7 @@ function generateTableHTML(t, pageData, titleLabel) {
     let gridHTML = `
         <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
             <h2 class="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
-                <span class="w-2.5 h-2.5 rounded-full ${t === 7 ? 'bg-amber-500' : 'bg-blue-600'}"></span>
+                <span class="w-2.5 h-2.5 rounded-full ${t === 13 ? 'bg-amber-500' : 'bg-blue-600'}"></span>
                 ${titleLabel}
             </h2>
             <span class="quiz-guide-text text-xs text-slate-500 font-medium hidden items-center gap-1.5 select-none">
@@ -187,26 +181,40 @@ function generateTableHTML(t, pageData, titleLabel) {
 }
 
 function prevPage() {
-    if (activeTab === 7) return;
+    if (activeTab === 13) return;
     let target = activeTab - 1;
-    if (target < 1) target = 6;
+    if (target < 1) target = 12;
     switchTab(target);
 }
 
 function nextPage() {
-    if (activeTab === 7) return;
+    if (activeTab === 13) return;
     let target = activeTab + 1;
-    if (target > 6) target = 1;
+    if (target > 12) target = 1;
     switchTab(target);
 }
 
 function toggleFavorites() {
-    if (activeTab === 7) {
+    if (activeTab === 13) {
         switchTab(preFavoriteTab);
     } else {
         preFavoriteTab = activeTab;
-        switchTab(7);
+        switchTab(13);
     }
+}
+
+function resetSingleTabDOM(tabNum) {
+    if (!tabCache[tabNum]) return;
+    tabCache[tabNum].querySelectorAll('.hanja-card-wrapper').forEach(cell => {
+        cell.classList.remove('card-final-correct', 'card-final-incorrect', 'mic-pulse-active', 'recording-active', 'checking-pulse-active');
+        const idx = cell.getAttribute('data-index');
+        const statusLabel = cell.querySelector('.card-status-label');
+        if (statusLabel) statusLabel.innerHTML = `#${parseInt(idx, 10) + 1}`;
+    });
+    tabCache[tabNum].querySelectorAll('.quiz-blur-target').forEach(span => {
+        span.classList.remove('solved');
+    });
+    appLog('System', `JIT 스팟 리셋 완수 ➡️ 대상 탭: ${tabNum === 13 ? '★ 즐겨찾기' : tabNum + '페이지'}`);
 }
 
 function switchTab(tabNum) {
@@ -215,14 +223,22 @@ function switchTab(tabNum) {
     if (!container) return;
     container.innerHTML = ''; 
 
-    if (tabNum === 7) {
-        if (isFavoritesDirty || !tabCache[7]) {
+    if (tabNum === 13) {
+        if (isFavoritesDirty || !tabCache[13]) {
             activeFavoriteIndices = [...bookmarks];
-            tabCache[7] = buildFavoritesDOM();
+            tabCache[13] = buildFavoritesDOM();
             isFavoritesDirty = false;
+            tabsNeedReset.delete(13);
+        } else if (tabsNeedReset.has(13)) {
+            resetSingleTabDOM(13);
+            tabsNeedReset.delete(13);
         }
-        container.appendChild(tabCache[7]);
+        container.appendChild(tabCache[13]);
     } else {
+        if (tabsNeedReset.has(tabNum)) {
+            resetSingleTabDOM(tabNum);
+            tabsNeedReset.delete(tabNum);
+        }
         container.appendChild(tabCache[tabNum]);
     }
     
@@ -232,14 +248,14 @@ function switchTab(tabNum) {
     const btnPrev = document.getElementById('btn-prev-page');
     const btnNext = document.getElementById('btn-next-page');
 
-    if (tabNum === 7) {
+    if (tabNum === 13) {
         if (tabBtn7) tabBtn7.className = "btn-header-ctrl active";
         if (pagerWrapper) {
             pagerWrapper.className = "flex items-center gap-1 bg-slate-700/40 p-1 rounded-lg h-10 text-slate-400 shadow-none shrink-0 select-none pointer-events-none opacity-50";
         }
         if (btnPrev) btnPrev.className = "btn-header-ctrl disabled";
         if (btnNext) btnNext.className = "btn-header-ctrl disabled";
-        if (pageIndicator) pageIndicator.innerText = "★ / 6";
+        if (pageIndicator) pageIndicator.innerText = "★ / 12";
     } else {
         if (tabBtn7) tabBtn7.className = "btn-header-ctrl";
         if (pagerWrapper) {
@@ -247,10 +263,10 @@ function switchTab(tabNum) {
         }
         if (btnPrev) btnPrev.className = "btn-header-ctrl";
         if (btnNext) btnNext.className = "btn-header-ctrl";
-        if (pageIndicator) pageIndicator.innerText = `${tabNum} / 6`;
+        if (pageIndicator) pageIndicator.innerText = `${tabNum} / 12`;
     }
 
-    appLog('System', `화면 탭 전환 ➡️ 대상 탭: ${tabNum === 7 ? '★ 즐겨찾기' : tabNum + '페이지'}`);
+    appLog('System', `화면 탭 전환 ➡️ 대상 탭: ${tabNum === 13 ? '★ 즐겨찾기' : tabNum + '페이지'}`);
 }
 
 function toggleSolvedState(globalIdx, forceSolved) {
@@ -266,11 +282,19 @@ function toggleSolvedState(globalIdx, forceSolved) {
         span.classList.toggle('solved', isSolved);
     });
 
-    const targetTab = Math.floor(globalIdx / 100) + 1;
+    const targetTab = Math.floor(globalIdx / 50) + 1; // 50자 규격 동기화
     if (tabCache[targetTab]) {
         const cachedSpan = tabCache[targetTab].querySelector(`#hun-text-${globalIdx}`);
         if (cachedSpan) {
             cachedSpan.classList.toggle('solved', isSolved);
+        }
+    }
+
+    // ◀ [동기화 추가] 13번 즐겨찾기 인메모리 캐시 레이어 내부에 해당 한자가 존재할 경우 정답 상태 상호 정밀 동기화
+    if (tabCache[13]) {
+        const cachedFavSpan = tabCache[13].querySelector(`#hun-text-${globalIdx}`);
+        if (cachedFavSpan) {
+            cachedFavSpan.classList.toggle('solved', isSolved);
         }
     }
 }
@@ -312,7 +336,6 @@ function updateCardUIState(index, state, passType) {
     }
 }
 
-// 순수 전경 UI 결과 도출 및 오디오 매핑용 결산 유닛 핸들러
 function executeFinalJudgment(index, isCorrect) {
     if (isCorrect) {
         audioEngine.playCorrect(); 
@@ -323,30 +346,22 @@ function executeFinalJudgment(index, isCorrect) {
         updateCardUIState(index, 'final', 'incorrect');
     }
 
-    // 카드 한 판의 상태 표출이 종결되었으므로 제어 변수 초기화 해제
     isCardLock = false;
     processingTargetIndex = null;
     evaluationTargetIndex = null;
 }
 
-// ==========================================================================
-// === [UX 개편 완료] 동적 주입 스펙 연동 토글 클릭형 입력 라이브러리 ===
-// ==========================================================================
-
 function handleToggleVoiceQuiz(index) {
     if (solvedHanjas.has(index)) return;
 
-    // [취소 분기] 녹음 가동 중 동일 한자 카드 재클릭 시, 수동 파괴 콜백 위임 호출
     if (isCardLock && processingTargetIndex === index) {
         appLog('System', `#${index + 1} 재클릭 취소 요구 수용 ➡️ 마이크 무력화 가동`);
         speechEngine.cancel();
         return;
     }
 
-    // 다른 한자 카드가 수집 채널을 점유하고 있다면 연타 완전 차단 가드
     if (isCardLock) return;
 
-    // 정상 상태 카드의 단발성 토글 클릭 성공에 따른 타겟 스코프 락인 획정
     isCardLock = true;
     processingTargetIndex = index;
     evaluationTargetIndex = index;
@@ -354,11 +369,10 @@ function handleToggleVoiceQuiz(index) {
     updateCardUIState(index, 'touch');
     appLog('System', `한자 터치 토글 시동 ➡️ #${index + 1}`);
 
-    // Stateless 채점 모듈 사양에 따른 비즈니스 요건 동적 주입 및 기동
     speechEngine.start({
-        targetText: hanjaData[index].m, // 정답 대조용 텍스트 주입
-        threshold: 0.6,                // 통과 비율 60% 주입
-        timeoutMs: 5000,               // 5초 타임아웃 주입
+        targetText: hanjaData[index].m, 
+        threshold: 0.6,                
+        timeoutMs: 5000,               
         onStart: function() {
             isListening = true;
             updateCardUIState(index, 'active');
@@ -487,13 +501,11 @@ function appLog(category, message) {
     consoleBody.scrollTop = consoleBody.scrollHeight;
 }
 
-// === 4. 부팅 통합 바인딩 관리자 ===
 window.onload = function() {
     appLog('System', '4급 배정한자 플랫폼 학습 엔진 초기화 가동 (공식 버전: {{APP_VERSION}})');
     preRenderStaticTables();
     activeFavoriteIndices = [...bookmarks];
     
-    // [인프라 드라이버 활성화] 부팅 시 스피치 엔진 고유의 내부 인터페이스 선행 할당 빌드
     speechEngine.init();
     
     switchTab(1);
@@ -508,18 +520,12 @@ window.onload = function() {
             event.preventDefault();
             const index = parseInt(bookmarkBtn.getAttribute('data-index'), 10);
             toggleBookmark(index);
-            if (activeTab === 7) {
-                switchTab(7);
-            }
             return;
         }
 
         const hunCell = event.target.closest('[data-action="click-hun"]');
         if (hunCell) {
             event.stopPropagation();
-            if (!isQuizMode) {
-                return;
-            }
             const index = parseInt(hunCell.getAttribute('data-index'), 10);
             handleHunClick(hunCell, index);
             return;
@@ -531,7 +537,6 @@ window.onload = function() {
             const index = parseInt(hanjaCell.getAttribute('data-index'), 10);
             
             if (isQuizMode) {
-                // [기획 스펙 기동] 퀴즈 모드일 때 가볍게 한 번 클릭하면 단발성 토글 제어 파이프 연결
                 handleToggleVoiceQuiz(index);
                 return; 
             }
@@ -550,34 +555,29 @@ window.onload = function() {
             if (isQuizMode) {
                 document.body.classList.add('quiz-mode');
                 actionBtn.className = "btn-quiz-toggle theme-emerald";
-                actionBtn.innerHTML = `<i class="fa-solid fa-eye"></i> <span>훈음 보이기</span>`;
-                appLog('System', '자가 테스트 퀴즈 모드 가동 (음성 학습 준비 완료)');
+                actionBtn.innerHTML = `<i class="fa-solid fa-book"></i> <span>도전 그만하기</span>`;
+                appLog('System', '말하기 도전 모드 가동 (음성 학습 준비 완료)');
             } else {
                 document.body.classList.remove('quiz-mode');
                 actionBtn.className = "btn-quiz-toggle theme-yellow";
-                actionBtn.innerHTML = `<i class="fa-solid fa-eye-slash"></i> <span>훈음 가리기</span>`;
-                appLog('System', '퀴즈 모드 해제 ➡️ 일반 열람 대기 상태');
+                actionBtn.innerHTML = `<i class="fa-solid fa-microphone"></i> <span>말하기 도전</span>`;
+                appLog('System', '말하기 도전 해제 ➡️ 일반 열람 대기 상태');
                 
                 solvedHanjas.clear();
                 isCardLock = false; 
 
-                // 인프라 강제 중단 및 잔여 스레드 동시 일제 파괴
                 speechEngine.abort();
 
-                // 저사양 하드웨어 배치 최적화 리셋 가속화
-                for (let t = 1; t <= 6; t++) {
-                    if (tabCache[t]) {
-                        tabCache[t].querySelectorAll('.hanja-card-wrapper').forEach(cell => {
-                            cell.classList.remove('card-final-correct', 'card-final-incorrect');
-                            const idx = cell.getAttribute('data-index');
-                            const statusLabel = cell.querySelector('.card-status-label');
-                            if (statusLabel) statusLabel.innerHTML = `#${parseInt(idx, 10) + 1}`;
-                        });
-                        tabCache[t].querySelectorAll('.quiz-blur-target').forEach(span => {
-                            span.classList.remove('solved');
-                        });
-                    }
+                // [JIT 스팟 리셋 기전 활성화] 현재 화면에 노출된 활성 탭만 즉시 무력화 소진
+                resetSingleTabDOM(activeTab);
+
+                // 보이지 않는 나머지 모든 영역은 세트에 등록 후 진입 시점에 순차 초기화 유도
+                tabsNeedReset.clear();
+                for (let i = 1; i <= 12; i++) {
+                    if (i !== activeTab) tabsNeedReset.add(i);
                 }
+                if (activeTab !== 13) tabsNeedReset.add(13);
+
                 processingTargetIndex = null;
                 evaluationTargetIndex = null;
                 switchTab(activeTab);

@@ -17,6 +17,13 @@ body {
     font-family: 'LXGW WenKai TC', 'ChosunGs', 'Gungsuh', '궁서', sans-serif;
 }
 
+/* ③ 적용: 카드 컴포넌트 내부의 레이아웃 영역을 완전히 격리하여 전역 리플로우(Reflow) 부하 차단 */
+.hanja-card-wrapper {
+    contain: layout paint;
+    content-visibility: auto;
+    contain-intrinsic-size: 110px 150px; /* 저사양 태블릿에서 스크롤 시 레이아웃 흔들림(Jumping) 현상 제어용 초기 높이 바인딩 */
+}
+
 /* 최적화: 무거운 그래픽 트랜지션 요소를 제거하여 가림/보이기 가동 즉시 반응 유도 */
 .quiz-blur-target {
     will-change: filter; /* 브라우저 하드웨어 가속 힌트 제공 */
