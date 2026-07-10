@@ -330,7 +330,7 @@ function executeFinalJudgment(index, isCorrect) {
 }
 
 // ==========================================================================
-// === [UX 개편 완료] v2.4 동적 주입 스펙 연동 토글 클릭형 입력 라이브러리 ===
+// === [UX 개편 완료] 동적 주입 스펙 연동 토글 클릭형 입력 라이브러리 ===
 // ==========================================================================
 
 function handleToggleVoiceQuiz(index) {
@@ -354,7 +354,7 @@ function handleToggleVoiceQuiz(index) {
     updateCardUIState(index, 'touch');
     appLog('System', `한자 터치 토글 시동 ➡️ #${index + 1}`);
 
-    // [v2.4 개정] Stateless 채점 모듈 사양에 따른 비즈니스 요건 동적 주입 및 기동
+    // Stateless 채점 모듈 사양에 따른 비즈니스 요건 동적 주입 및 기동
     speechEngine.start({
         targetText: hanjaData[index].m, // 정답 대조용 텍스트 주입
         threshold: 0.6,                // 통과 비율 60% 주입
