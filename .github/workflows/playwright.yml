@@ -28,7 +28,7 @@ jobs:
         node-version: lts/*
 
     - name: 프로젝트 의존성 라이브러리 자동 설치
-      run: npm ci
+      run: npm install
 
     - name: 가상 브라우저(크롬) 엔진 및 시스템 환경 빌드
       run: npx playwright install --with-deps chromium
