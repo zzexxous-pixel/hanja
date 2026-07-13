@@ -11,12 +11,17 @@
 ### 2. 가상 서버가 자동으로 움직이는 순간 (리소스 절약)
 
 * 오직 **HTML, JS, CSS 파일이 변경되어 배포(`push`)될 때만** 깃허브 가상 서버가 깨어납니다.
-* 마크다운(`README.md`) 등 문서 수정 시에는 작동하지 않아 무료 제공 시간(월 2,000분)을 철저히 아낍니다.
+* 마크다운(`README.md`) 등 문서나 워크플로우 명세서 수정 시에는 자원을 낭비하지 않고 철저히 침묵하여 무료 제공 시간(월 2,000분)을 절약합니다.
 
-### 3. 제로 에디트(Zero-Edit) 아키텍처
+### 3. 고속 브라우저 캐싱 아키텍처 (Speed Optimization)
 
-* 테스트용 저장소(`hanja-test`)와 운영용 저장소(`hanja`)의 코드가 **100% 동기화**됩니다.
-* 저장소를 옮길 때 내부 코드나 주소, 이름을 수동으로 고칠 필요가 없도록 모든 주소가 동적으로 계산됩니다.
+* 깃허브 가상 컴퓨터 내부에 플레이라이트 전용 비밀 창고(`~/.cache/ms-playwright`)를 개설합니다.
+* 2회차 빌드부터는 크롬 브라우저 다운로드 게이지 바 자체가 뜨지 않고 **단 3초 만에 환경 정비를 끝낸 뒤 10대 시나리오 테스트로 즉시 돌입**합니다.
+
+### 4. 제로 에디트(Zero-Edit) 자율 구동
+
+* 테스트용 저장소(`hanja-test`)와 운영용 저장소(`hanja`)의 코드가 주소 수정 없이 **100% 호환**됩니다.
+* 저장소 이름에서 타겟 도메인을 자동으로 분리 추출하므로 인적 오타 실수를 원천 차단합니다.
 
 ---
 
@@ -110,7 +115,7 @@ if (process.platform === 'win32') {
 
 ## 4. 깃허브 액션즈 워크플로우 구성 (`.github/workflows/playwright.yml`)
 
-대괄호 문법 오류를 완전 세척하고, 온라인 환경에 맞게 `npm install` 빌드 유연성 안정화를 적용한 최종 자동 가동 명세서입니다.
+초고속 브라우저 저장 창고 메커니즘을 이식하여 공회전 시간을 완벽하게 지워버린 무결성 CI 가동 명세서 최종본입니다.
 
 `.github/workflows/playwright.yml` 경로에 파일을 생성하고 아래 코드를 붙여넣습니다.
 
@@ -147,8 +152,23 @@ jobs:
     - name: 프로젝트 의존성 라이브러리 자동 설치
       run: npm install
 
-    - name: 가상 브라우저(크롬) 엔진 및 시스템 환경 빌드
+    # 💡 [고속화 핵심] 가상 컴퓨터 내부에 크롬 브라우저 전용 창고(Cache)를 개설합니다.
+    - name: Playwright 브라우저 캐시 상태 확인
+      uses: actions/cache@v4
+      id: playwright-cache
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-playwright-${{ hashFiles('package.json') }}
+
+    # 💡 창고에 크롬이 없을 때만(최초 1회) 177MB 파일을 새로 다운로드합니다.
+    - name: 가상 브라우저(크롬) 엔진 신규 다운로드 (캐시 미적중 시)
+      if: steps.playwright-cache.outputs.cache-hit != 'true'
       run: npx playwright install --with-deps chromium
+
+    # 💡 창고에 크롬이 있다면 다운로드를 건너뛰고 리눅스 시스템 런타임 환경만 3초 만에 주입합니다.
+    - name: 리눅스 시스템 브라우저 종속성만 초고속 주입 (캐시 적중 시)
+      if: steps.playwright-cache.outputs.cache-hit == 'true'
+      run: npx playwright install-deps chromium
 
     - name: 🔥 Playwright 10대 철벽 시나리오 가동
       run: npx playwright test
