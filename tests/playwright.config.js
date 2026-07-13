@@ -1,4 +1,3 @@
-// playwright.config.js
 const { defineConfig, devices } = require('@playwright/test');
 
 module.exports = defineConfig({
@@ -6,21 +5,22 @@ module.exports = defineConfig({
   fullyParallel: true,
   reporter: 'html',
   use: {
-    // 테스트할 때 기본 주소
-    //baseURL: 'http://localhost:8080', 
-    // 깃헙 페이지 주소를 기본 주소로 설정
-    baseURL: 'https://zzexxous-pixel.github.io/hanja-test/', 
+    // 💡 [CI 환경 분기] 깃허브 서버에서는 내부 가상 주소(8080), 로컬에서는 라이브 배포 주소를 바라봅니다.
+    baseURL: process.env.CI ? 'http://localhost:8080' : 'https://zzexxous-pixel.github.io/hanja-test/', 
     trace: 'on-first-retry',
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'mobile-chrome', use: { ...devices['Pixel 5'] } }, // 모바일 제스처 테스트용
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
   ],
 
-  // 💡 [핵심] 테스트가 켜질 때 현재 폴더의 HTML을 8080 포트로 띄우는 설정
-  /*webServer: {
+  // 💡 [웹서버 조건부 가동] 깃허브 가상 서버 환경(CI)일 때만 임시 가상 서버를 가동하고, 
+  // 내 컴퓨터(로컬)에서 돌릴 때는 가상 서버를 켜지 않아 CPU 자원을 아낍니다.
+  webServer: process.env.CI ? {
     command: 'npx serve -p 8080 .',
     url: 'http://localhost:8080',
-    reuseExistingServer: !process.env.CI,
-  },*/
+    reuseExistingServer: true,
+  } : undefined,
 });
