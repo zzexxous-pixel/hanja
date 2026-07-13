@@ -1,0 +1,45 @@
+name: 한자 마스터 CI 기능 전수 테스트
+on:
+  push:
+    branches: [ main, master ]
+    # 💡 [스마트 낭비 방지] 오직 핵심 웹 파일이 수정되어 올라올 때만 가상 서버를 가동합니다.
+    paths:
+      - '**.html'
+      - '**.js'
+      - '**.css'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - '**.html'
+      - '**.js'
+      - '**.css'
+
+jobs:
+  playwright-test:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest # 깃허브 최신 리눅스 가상 컴퓨터 환경 빌드
+    steps:
+    - name: 소스코드 동기화
+      uses: actions/checkout@v4
+
+    - name: Node.js 런타임 설치
+      uses: actions/setup-node@v4
+      with:
+        node-version: lts/*
+
+    - name: 프로젝트 의존성 라이브러리 자동 설치
+      run: npm ci
+
+    - name: 가상 브라우저(크롬) 엔진 및 시스템 환경 빌드
+      run: npx playwright install --with-deps chromium
+
+    - name: 🔥 Playwright 10대 철벽 시나리오 가동
+      run: npx playwright test
+
+    - name: [실패 예외 대응] 테스트 실패 시 결과 HTML 리포트 업로드
+      if: ${{ failure() }} # 오직 테스트가 실패했을 때만 구동되어 업로드 수행
+      uses: actions/upload-artifact@v4
+      with:
+        name: playwright-report
+        path: playwright-report/
+        retention-days: 7
