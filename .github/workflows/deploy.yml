@@ -45,8 +45,14 @@ jobs:
             PATCH_COUNT=$(git rev-list --count ${VERSION_COMMIT}..HEAD)
           fi
           
-          # 4. 최종 유의적 버전 조합 (예: v1.2.4)
-          FULL_VERSION="v${BASE_VERSION}.${PATCH_COUNT}-test"
+          # 4. 저장소 이름에 따라 버전 뒤에 '-test'를 동적으로 붙여 조합합니다.
+          if [[ "$GITHUB_REPOSITORY" == *-test ]]; then
+            # 테스트 저장소(hanja-test)일 때
+            FULL_VERSION="v${BASE_VERSION}.${PATCH_COUNT}-test"
+          else
+            # 운영 저장소(hanja)일 때 (-test 제거)
+            FULL_VERSION="v${BASE_VERSION}.${PATCH_COUNT}"
+          fi
           
           # 5. 한국 시간(KST) 커밋 일시 추출
           COMMIT_DATE=$(TZ=Asia/Seoul git log -1 --format='%cd' --date=format:'%Y-%m-%d %H:%M:%S')
