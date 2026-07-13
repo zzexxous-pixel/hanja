@@ -11,30 +11,43 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0 # 히스토리를 통째로 넘기기 위해 이력을 모두 가져옵니다.
+        persist-credentials: false # 💡 [치트키] 일꾼의 임시 인증 정보 박제를 막아, 우리의 SYNC_TOKEN이 덮어써지는 현상을 원천 차단합니다!
 
     - name: 2. Node.js 가상 환경 런타임 구축
       uses: actions/setup-node@v4
       with:
         node-version: lts/*
 
-    - name: 3. 플레이라이트 구동용 패키지 초경량 설치
+    # 💡 이전 대화에서 설계한 초고속 브라우저 캐싱 레이어 탑재
+    - name: 3. Playwright 브라우저 캐시 상태 확인
+      uses: actions/cache@v4
+      id: playwright-cache
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-playwright-${{ hashFiles('package.json') }}
+
+    - name: 4. 프로젝트 의존성 라이브러리 자동 설치
       run: npm install
 
-    - name: 4. 가상 브라우저(크롬) 엔진 및 종속성 완벽 빌드
+    - name: 5. 가상 브라우저(크롬) 엔진 신규 다운로드 (캐시 미적중 시)
+      if: steps.playwright-cache.outputs.cache-hit != 'true'
       run: npx playwright install --with-deps chromium
 
-    - name: 5. 🔥 운영 이관 전 10대 철벽 시나리오 최종 전수 검증
+    - name: 6. 리눅스 시스템 브라우저 종속성만 초고속 주입 (캐시 적중 시)
+      if: steps.playwright-cache.outputs.cache-hit == 'true'
+      run: npx playwright install-deps chromium
+
+    - name: 7. 🔥 운영 이관 전 10대 철벽 시나리오 최종 전수 검증
       run: npx playwright test
 
-    # 🚀 [제2 방어선] 파일 복사가 아닌, 검증이 끝난 현재 Git 히스토리 전체를 운영 레포로 통째로 강제 푸시합니다.
-    - name: 6. 테스트 통과 완료본 운영(hanja) 저장소로 무결성 원터치 배포
+    # 🚀 이제 방해꾼 없이 깨끗한 권한으로 운영 저장소 이력을 통째로 갱신합니다.
+    - name: 8. 테스트 통과 완료본 운영(hanja) 저장소로 무결성 원터치 배포
       run: |
         git config --global user.name "GitHub Actions"
         git config --global user.email "actions@github.com"
         
-        # 운영 레포지토리를 production 원격지로 등록
+        # SYNC_TOKEN 마스터키를 사용하여 운영 레포지토리를 production 원격지로 깔끔하게 등록
         git remote add production https://${{ secrets.SYNC_TOKEN }}@github.com/zzexxous-pixel/hanja.git
         
-        # 💡 현재 테스트 레포의 완전히 검증된 main 브랜치 이력(History)을 운영 레포로 강제 푸시(Force Push)합니다.
-        # 이 한 줄 덕분에 운영 서버가 무결한 버전 번호와 업데이트 시간을 그대로 계승하게 됩니다.
+        # 테스트 레포의 완전히 검증된 main 브랜치 이력 전체를 운영 레포로 강제 푸시합니다.
         git push production main:main --force

@@ -30,8 +30,23 @@ jobs:
     - name: 프로젝트 의존성 라이브러리 자동 설치
       run: npm install
 
-    - name: 가상 브라우저(크롬) 엔진 및 시스템 환경 빌드
+    # 1. 💡 [추가] 깃허브 가상 컴퓨터 내부에 크롬 브라우저 전용 저장 창고(Cache)를 개설합니다.
+    - name: Playwright 브라우저 캐시 상태 확인
+      uses: actions/cache@v4
+      id: playwright-cache
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-playwright-${{ hashFiles('package.json') }}
+
+    # 2. 💡 [수정] 창고에 크롬이 없을 때만(최초 1회) 177MB 파일을 새로 다운로드합니다.
+    - name: 가상 브라우저(크롬) 엔진 신규 다운로드 (캐시 미적중 시)
+      if: steps.playwright-cache.outputs.cache-hit != 'true'
       run: npx playwright install --with-deps chromium
+
+    # 3. 💡 [추가] 창고에 이미 크롬이 있다면, 다운로드는 건너뛰고 리눅스 시스템 환경만 3초 만에 세팅합니다.
+    - name: 리눅스 시스템 브라우저 종속성만 초고속 주입 (캐시 적중 시)
+      if: steps.playwright-cache.outputs.cache-hit == 'true'
+      run: npx playwright install-deps chromium
 
     - name: 🔥 Playwright 10대 철벽 시나리오 가동
       run: npx playwright test
