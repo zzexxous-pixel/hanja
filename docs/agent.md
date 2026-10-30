@@ -75,4 +75,8 @@
 - 사용자에게 공식 자형·획수 파일/URL 및 획순 도해 제공을 요청해야 전체 대조를 완료할 수 있다.
 - 테스트에 실제 로컬 Hanzi Writer 사용한13획 입력/오답/완료, 예외 오류/재시도, 정확한 문자코드 누락 보완, SVG 일치를 추가했다.
 - Fault injection E2E는 SW 캐시가 page.route를 우회하지 않게 serviceWorkers:block 사용. 일반 E2E는 기존대로.
-- README는 아직 보류. 로컬 단위8개 통과. 이번 최종 GitHub/배포 결과는 실행 후 추가 기록.
+- README는 아직 보류. 로컬 단위8개 통과. 최종 코드6d1e8c0 / Actions41028934572: 데스크톱·모바일 E2E34개 통과(26.1초), Pages preview 배포와 HTTP/SHA smoke 성공.
+- 실행 결과: https://github.com/zzexxous-pixel/hanja-test/actions/runs/41028934572
+- 배포: https://zzexxous-pixel.github.io/hanja-test/preview/
+- 검수표: https://zzexxous-pixel.github.io/hanja-test/preview/review/
+- 13획 실제 입력/역방향 오답/완료, 로딩 오류 표시/닫기/재시도까지 검증했다. 실기기 저사양 성능/공식 전체획순 검수를 완료했다고 표현하지 말 것.
