@@ -370,7 +370,7 @@
     },
 
     pauseAnimation: function () {
-      if (!this.writer) return;
+      if (!this.writer || !this.isReady) return;
       this.writer.pauseAnimation();
     },
 
