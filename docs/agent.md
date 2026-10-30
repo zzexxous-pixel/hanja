@@ -61,4 +61,5 @@
 
 ## 검증 결과 (이번 변경)
 - 로컬 구문/데이터 검사 및 단위 테스트 6개 통과, 정적 preview 패키징 통과.
-- GitHub E2E/배포 결과는 실행 후 아래 갱신할 것. 아직 실행 전 상태를 성공으로 기록하지 않는다.
+- GitHub Actions 41025691561: E2E 26/26 통과(21.7초), Pages 배포 성공, 배포 후 HTTP/SHA smoke 성공. https://github.com/zzexxous-pixel/hanja-test/actions/runs/41025691561
+- main 배포는 root(main)와 보존 preview 둘 다 E2E 검증하도록 구성. arena push에서는 수정된 preview만 검증하며 기존 main 소스까지 바꾸지 않는다.

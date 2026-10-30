@@ -30,6 +30,11 @@ jobs:
         run: |
           if [ '${{ inputs.preview }}' = 'true' ]; then npm run build:preview; else npm run build; fi
       - run: npx playwright install --with-deps chromium
+      - name: Verify main root as well when preserving a preview
+        if: inputs.preview && github.ref == 'refs/heads/main'
+        run: npm run test:e2e
+        env:
+          APP_PATH: /
       - run: npm run test:e2e
         env:
           APP_PATH: ${{ inputs.preview && '/preview/' || '/' }}

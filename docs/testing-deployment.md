@@ -20,7 +20,7 @@ PR에서는 검증만 하고 배포하지 않는다. 운영 이관은 main의 �
 단일 Pages 산출물 안에 main 루트 + 선택 preview를 둔다. main 배포에서도 preview를 포함한다.
 main에 통합되기 전에는 기존 main의 구형 워크플로가 이를 알지 못한다. 이번 브랜치의 개선은 병합 전까지 해당 브랜치 workflow에만 적용된다.
 현재 선택 preview 기본 ref는 deploy.yml에 명시되어 있다. 다음 세션은 PREVIEW_REF 저장소 변수(예: origin/arena/...)로 변경한다.
-다른 브랜치 preview 푸시 시에는 그 브랜치 HEAD를 검증한다. main 배포에서는 선택 preview도 함께 검사하므로 preview 오류로 main 배포가 막힐 수 있다. 긴급 시 preview 대상 선택을 먼저 조정한다.
+다른 브랜치 preview 푸시 시에는 그 브랜치 HEAD를 검증한다. main 배포에서는 root(main)와 선택 preview를 각각 E2E 검사하므로 preview 오류로 main 배포가 막힐 수 있다. 긴급 시 preview 대상 선택을 먼저 조정한다.
 
 ## 테스트 범위와 한계
 - 단위: 즐겨찾기 변환/손상/할당량/급수 변경, 한글 분해·거리·유사도.
