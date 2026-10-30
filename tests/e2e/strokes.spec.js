@@ -125,10 +125,8 @@ test('every grade batch matches the runtime Korean-reading page order',async({pa
  const mismatches=await page.evaluate(()=>{
   const errors=[];
   for(const [grade,pages] of Object.entries(GLYPH_INDEX.grades)){
-   const unique=new Map();
-   for(const key of GRADE_ORDER.slice(0,GRADE_ORDER.indexOf(grade)+1))
-    for(const item of hanjaNewData[key]||[])if(!unique.has(item.h))unique.set(item.h,item);
-   const sorted=[...unique.values()].sort((a,b)=>getEum(a.m).localeCompare(getEum(b.m),'ko')||a.m.localeCompare(b.m,'ko'));
+   HanjaApp.setGrade(grade);
+   const sorted=[...hanjaData];
    pages.forEach((batch,page)=>{
     const expected=sorted.slice(page*50,page*50+50).map(item=>item.h.codePointAt(0).toString(16).toUpperCase().padStart(4,'0')).sort();
     if(JSON.stringify(expected)!==JSON.stringify([...GLYPH_INDEX.members[batch]].sort()))errors.push(`${grade}:${page+1}`);
