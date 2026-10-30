@@ -153,7 +153,7 @@
       const penWidth = Math.max(16, Math.round(this.size * 0.055));
 
       this.writer = global.HanziWriter.create(this.targetEl, this.char, {
-        charDataLoader: (character, complete, fail) => global.StrokeData.load(character).then(complete, fail),
+        charDataLoader: character => global.StrokeData.load(character),
         width: this.size,
         height: this.size,
         padding: Math.max(10, Math.round(this.size * 0.05)),

@@ -586,6 +586,7 @@ function setModalMode(mode) {
 
     if (modalWriter) {
         modalWriter.setMode(mode);
+        if (modalWriter.isReady) updateModalSpecUI(modalWriter.getMeta());
     }
 }
 

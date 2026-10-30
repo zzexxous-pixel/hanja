@@ -1,4 +1,6 @@
 const {test,expect}=require('@playwright/test');
+// Fault injection must reach the page fetch, not be served by a service-worker cache.
+test.use({serviceWorkers:'block'});
 async function openCharacter(page,character){
  const index=await page.evaluate(c=>hanjaData.findIndex(item=>item.h===c),character);
  expect(index).toBeGreaterThanOrEqual(0);
