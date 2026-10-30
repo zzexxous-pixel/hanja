@@ -11,8 +11,9 @@ let activeTab = 1;
 let preFavoriteTab = 1; 
 let isQuizMode = false;
 
-let bookmarks = JSON.parse(localStorage.getItem('hanja_bookmarks')) || [];
-let activeFavoriteIndices = [...bookmarks];
+const bookmarkStore = createBookmarkStore(localStorage);
+const FAVORITES_TAB = 'favorites';
+let activeFavoriteIndices = [];
 
 let solvedHanjas = new Set();
 const tabCache = {};
@@ -32,24 +33,15 @@ let modalWriter = null;
 let currentModalMode = 'demo';
 let modalResizeObserver = null;
 
-function saveBookmarks() {
-    localStorage.setItem('hanja_bookmarks', JSON.stringify(bookmarks));
-}
-
 function toggleBookmark(index, event) {
     if (event) {
         event.stopPropagation();
         event.preventDefault();
     }
-    const bIdx = bookmarks.indexOf(index);
-    const isRemoving = bIdx > -1;
-
-    if (isRemoving) {
-        bookmarks.splice(bIdx, 1);
-    } else {
-        bookmarks.push(index);
-    }
-    saveBookmarks();
+    const character = hanjaData[index]?.h;
+    if (!character) return;
+    const isRemoving = bookmarkStore.has(character);
+    bookmarkStore.toggle(character);
 
     isFavoritesDirty = true; 
 
@@ -77,7 +69,7 @@ function updateCellStarUI(index, isStarred) {
 function updateModalStarState(index) {
     const starBtn = document.getElementById('modal-star-btn');
     if (!starBtn) return;
-    if (bookmarks.includes(index)) {
+    if (bookmarkStore.has(hanjaData[index]?.h)) {
         starBtn.className = "btn-popup-top-icon theme-star starred";
     } else {
         starBtn.className = "btn-popup-top-icon theme-star unstarred";
@@ -86,7 +78,7 @@ function updateModalStarState(index) {
 
 function preRenderStaticTables() {
     for (let key in tabCache) {
-        if (key !== "13") delete tabCache[key];
+        if (key !== FAVORITES_TAB) delete tabCache[key];
     }
     
     for (let t = 1; t <= totalPages; t++) { 
@@ -127,7 +119,7 @@ function buildFavoritesDOM() {
         return tableWrapper;
     }
 
-    tableWrapper.innerHTML = generateTableHTML(13, pageData, titleLabel);
+    tableWrapper.innerHTML = generateTableHTML(FAVORITES_TAB, pageData, titleLabel);
     return tableWrapper;
 }
 
@@ -135,7 +127,7 @@ function generateTableHTML(t, pageData, titleLabel) {
     let gridHTML = `
         <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
             <h2 class="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
-                <span class="w-2.5 h-2.5 rounded-full ${t === 13 ? 'bg-amber-500' : 'bg-blue-600'}"></span>
+                <span class="w-2.5 h-2.5 rounded-full ${t === FAVORITES_TAB ? 'bg-amber-500' : 'bg-blue-600'}"></span>
                 ${titleLabel}
             </h2>
             <span class="quiz-guide-text text-xs text-slate-500 font-medium hidden items-center gap-1.5 select-none">
@@ -147,7 +139,7 @@ function generateTableHTML(t, pageData, titleLabel) {
 
     pageData.forEach((item) => {
         const globalIdx = item.originalIdx;
-        const isStarred = bookmarks.includes(globalIdx);
+        const isStarred = bookmarkStore.has(item.h);
         const isSolved = solvedHanjas.has(globalIdx);
         const solvedClass = isSolved ? 'solved' : '';
         
@@ -178,25 +170,25 @@ function generateTableHTML(t, pageData, titleLabel) {
 }
 
 function prevPage() {
-    if (activeTab === 13) return;
+    if (activeTab === FAVORITES_TAB) return;
     let target = activeTab - 1;
     if (target < 1) target = totalPages;
     switchTab(target);
 }
 
 function nextPage() {
-    if (activeTab === 13) return;
+    if (activeTab === FAVORITES_TAB) return;
     let target = activeTab + 1;
     if (target > totalPages) target = 1;
     switchTab(target);
 }
 
 function toggleFavorites() {
-    if (activeTab === 13) {
+    if (activeTab === FAVORITES_TAB) {
         switchTab(preFavoriteTab);
     } else {
         preFavoriteTab = activeTab;
-        switchTab(13);
+        switchTab(FAVORITES_TAB);
     }
 }
 
@@ -211,7 +203,7 @@ function resetSingleTabDOM(tabNum) {
     tabCache[tabNum].querySelectorAll('.quiz-blur-target').forEach(span => {
         span.classList.remove('solved');
     });
-    appLog('System', `JIT 스팟 리셋 완수 ➡️ 대상 탭: ${tabNum === 13 ? '★ 즐겨찾기' : tabNum + '페이지'}`);
+    appLog('System', `JIT 스팟 리셋 완수 ➡️ 대상 탭: ${tabNum === FAVORITES_TAB ? '★ 즐겨찾기' : tabNum + '페이지'}`);
 }
 
 function switchTab(tabNum) {
@@ -220,17 +212,17 @@ function switchTab(tabNum) {
     if (!container) return;
     container.innerHTML = ''; 
 
-    if (tabNum === 13) {
-        if (isFavoritesDirty || !tabCache[13]) {
-            activeFavoriteIndices = [...bookmarks];
-            tabCache[13] = buildFavoritesDOM();
+    if (tabNum === FAVORITES_TAB) {
+        if (isFavoritesDirty || !tabCache[FAVORITES_TAB]) {
+            activeFavoriteIndices = bookmarkStore.indices(hanjaData);
+            tabCache[FAVORITES_TAB] = buildFavoritesDOM();
             isFavoritesDirty = false;
-            tabsNeedReset.delete(13);
-        } else if (tabsNeedReset.has(13)) {
-            resetSingleTabDOM(13);
-            tabsNeedReset.delete(13);
+            tabsNeedReset.delete(FAVORITES_TAB);
+        } else if (tabsNeedReset.has(FAVORITES_TAB)) {
+            resetSingleTabDOM(FAVORITES_TAB);
+            tabsNeedReset.delete(FAVORITES_TAB);
         }
-        container.appendChild(tabCache[13]);
+        container.appendChild(tabCache[FAVORITES_TAB]);
     } else {
         if (tabNum > totalPages) {
             tabNum = 1;
@@ -249,7 +241,7 @@ function switchTab(tabNum) {
     const btnPrev = document.getElementById('btn-prev-page');
     const btnNext = document.getElementById('btn-next-page');
 
-    if (tabNum === 13) {
+    if (tabNum === FAVORITES_TAB) {
         if (tabBtn7) tabBtn7.className = "btn-header-ctrl active";
         if (pagerWrapper) {
             pagerWrapper.className = "flex items-center gap-1 bg-slate-700/40 p-1 rounded-lg h-10 text-slate-400 shadow-none shrink-0 select-none pointer-events-none opacity-50";
@@ -267,7 +259,7 @@ function switchTab(tabNum) {
         if (pageIndicator) pageIndicator.innerText = `${tabNum} / ${totalPages}`;
     }
 
-    appLog('System', `화면 탭 전환 ➡️ 대상 탭: ${tabNum === 13 ? '★ 즐겨찾기' : tabNum + '페이지'}`);
+    appLog('System', `화면 탭 전환 ➡️ 대상 탭: ${tabNum === FAVORITES_TAB ? '★ 즐겨찾기' : tabNum + '페이지'}`);
 }
 
 function toggleSolvedState(globalIdx, forceSolved) {
@@ -291,8 +283,8 @@ function toggleSolvedState(globalIdx, forceSolved) {
         }
     }
 
-    if (tabCache[13]) {
-        const cachedFavSpan = tabCache[13].querySelector(`#hun-text-${globalIdx}`);
+    if (tabCache[FAVORITES_TAB]) {
+        const cachedFavSpan = tabCache[FAVORITES_TAB].querySelector(`#hun-text-${globalIdx}`);
         if (cachedFavSpan) {
             cachedFavSpan.classList.toggle('solved', isSolved);
         }
@@ -632,7 +624,7 @@ function updateModalNavState() {
     const nextBtn = document.getElementById('btn-modal-next-hanja');
     if (!prevBtn || !nextBtn) return;
 
-    if (activeTab === 13) {
+    if (activeTab === FAVORITES_TAB) {
         const favIdx = activeFavoriteIndices.indexOf(currentActiveModalIdx);
         prevBtn.disabled = (favIdx <= 0);
         nextBtn.disabled = (favIdx === -1 || favIdx >= activeFavoriteIndices.length - 1);
@@ -643,7 +635,7 @@ function updateModalNavState() {
 }
 
 function prevModalHanja() {
-    if (activeTab === 13) {
+    if (activeTab === FAVORITES_TAB) {
         const favIdx = activeFavoriteIndices.indexOf(currentActiveModalIdx);
         if (favIdx > 0) {
             openModal(activeFavoriteIndices[favIdx - 1]);
@@ -656,7 +648,7 @@ function prevModalHanja() {
 }
 
 function nextModalHanja() {
-    if (activeTab === 13) {
+    if (activeTab === FAVORITES_TAB) {
         const favIdx = activeFavoriteIndices.indexOf(currentActiveModalIdx);
         if (favIdx !== -1 && favIdx < activeFavoriteIndices.length - 1) {
             openModal(activeFavoriteIndices[favIdx + 1]);
@@ -802,6 +794,10 @@ function changeAppGrade(targetGrade) {
     localStorage.setItem('hanja_grade', targetGrade);
 
     loadGradeData(targetGrade);
+    activeFavoriteIndices = bookmarkStore.indices(hanjaData);
+    isFavoritesDirty = true;
+    solvedHanjas.clear();
+    tabsNeedReset.clear();
     preRenderStaticTables();
 
     const titleEl = document.getElementById('header-grade-title');
@@ -968,6 +964,7 @@ window.onload = function() {
     appLog('System', `바른한자 학습 엔진 초기화 가동 (선택 급수: ${currentGrade}, 판정 기준: ${Math.round(currentThreshold * 100)}%)`);
     
     loadGradeData(currentGrade);
+    bookmarkStore.migrateLegacy(hanjaData);
     
     // 디버그 콘솔 상단 드래그 바 컨트롤 라이브러리 가동
     initDebugConsoleTopResize();
@@ -978,7 +975,7 @@ window.onload = function() {
     }
 
     preRenderStaticTables();
-    activeFavoriteIndices = [...bookmarks];
+    activeFavoriteIndices = bookmarkStore.indices(hanjaData);
     
     speechEngine.init();
     
@@ -1048,7 +1045,7 @@ window.onload = function() {
                     for (let i = 1; i <= totalPages; i++) {
                         if (i !== activeTab) tabsNeedReset.add(i);
                     }
-                    if (activeTab !== 13) tabsNeedReset.add(13);
+                    if (activeTab !== FAVORITES_TAB) tabsNeedReset.add(FAVORITES_TAB);
 
                     processingTargetIndex = null;
                     evaluationTargetIndex = null;

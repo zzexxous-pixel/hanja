@@ -1,4 +1,5 @@
-const CACHE_VERSION = 'bareunhanja-{{APP_VERSION}}';
+const CACHE_PREFIX = `bareunhanja-${self.registration.scope}-`;
+const CACHE_VERSION = `${CACHE_PREFIX}{{APP_VERSION}}`;
 
 // 반드시 로컬에 존재하는 핵심 파일만 프리캐싱 (하나라도 404면 설치 중단 방지)
 const PRECACHE_ASSETS = [
@@ -13,6 +14,7 @@ const PRECACHE_ASSETS = [
     './audioEngine.js',
     './speechEngine.js',
     './writingEngine.js',
+    './bookmarkStore.js',
     './script.js'
 ];
 
@@ -30,7 +32,7 @@ self.addEventListener('activate', (event) => {
         caches.keys().then((keys) => {
             return Promise.all(
                 keys.map((key) => {
-                    if (key !== CACHE_VERSION) {
+                    if (key.startsWith(CACHE_PREFIX) && key !== CACHE_VERSION) {
                         return caches.delete(key);
                     }
                 })
