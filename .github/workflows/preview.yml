@@ -13,9 +13,6 @@ jobs:
   preview:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}preview/
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,10 +32,16 @@ jobs:
           path: |
             playwright-report/
             test-results/
-      - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
           path: _site
+  deploy:
+    needs: preview
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}preview/
+    steps:
       - name: Deploy preview alongside main
         id: deployment
         uses: actions/deploy-pages@v4
