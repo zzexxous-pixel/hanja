@@ -3,8 +3,7 @@ async function grade(page, value) {
     await page.locator('[data-action="open-grade-modal"]').click();
     await page.locator('#grade-grid-container').getByRole('button', {name: new RegExp(`^${value}\\s`)}).click();
     await expect(page.locator('#header-grade-title')).toHaveText(`바른한자 [${value}]`);
-    // Grade selection is applied immediately; dismiss if the modal remains open.
-    if (await page.locator('#grade-modal').isVisible()) await page.locator('[data-action="close-grade-modal"]').click();
+    await expect(page.locator('#grade-modal')).toBeHidden();
 }
 test.beforeEach(async ({ page }) => {
     // External writing/font services are not part of bookmark behavior.
