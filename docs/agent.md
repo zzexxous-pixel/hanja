@@ -110,3 +110,5 @@
 - 예외18개(敬 + 기본누락16개 + 産). 단위12개 통과. E2E에 産의 전체 폭/11획/동일SVG/카드이미지 표시 검증 추가(데스크톱+모바일 총38개).
 - deploy.yml의 main용 preview 기본 ref를 origin/arena/0e0b3d2c-hanja-test로 갱신(향후 병합 시 적용). arena push는 자신의 HEAD를 preview에 배포한다.
 - 이번에는 preview만 배포하며 main 병합/운영 이관은 요청 전 수행하지 않는다.
+- 최종 검증/배포: 코드4e01835, Actions41067180545. 단위12개 및 데스크톱/모바일 E2E38개(40.5초) 통과. 새 브랜치 preview 배포와 HTTP/SHA smoke 성공. https://github.com/zzexxous-pixel/hanja-test/actions/runs/41067180545
+- 기본 사이트 main은 그대로 유지했고 병합하지 않았다. 사용자 확인 대상: https://zzexxous-pixel.github.io/hanja-test/preview/ 의 4급 #251 産 및 상세 쓰기.
