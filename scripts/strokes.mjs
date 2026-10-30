@@ -76,6 +76,6 @@ export function packageStrokes(src,dest) {
  cpSync(join(dirname(require.resolve('hanzi-writer-data/package.json')),'ARPHICPL.TXT'),join(assets,'licenses/Arphic-Public-License.txt'));
  cpSync(join(src,'data/stroke-overrides/manifest.json'),join(assets,'licenses/stroke-overrides.json'));
  cpSync(join(src,'data/licenses/AnimCJK-COPYING.txt'),join(assets,'licenses/AnimCJK-COPYING.txt'));
- writeFileSync(join(assets,'licenses/NOTICE.txt'),'Hanzi Writer 3.7.3: MIT, David Chanin.\nDefault strokes: hanzi-writer-data 2.0.1 / Make Me a Hanzi / Arphic fonts, Arphic Public License.\n敬 outlines and centerlines modified from AnimCJK, FM-SH 2016–2026, Arphic Public License.\nSource: '+manifest.characters['敬'].sourceUrl+'\nModification: transformed coordinates and sampled medians. See stroke manifest for per-character source/review status.\n');
+ writeFileSync(join(assets,'licenses/NOTICE.txt'),'Hanzi Writer 3.7.3: MIT, David Chanin.\nDefault strokes: hanzi-writer-data 2.0.1 / Make Me a Hanzi / Arphic fonts, Arphic Public License.\nException outlines and centerlines modified from AnimCJK, FM-SH 2016–2026, Arphic Public License. Per-character sources: stroke-overrides.json.\nSource: '+manifest.characters['敬'].sourceUrl+'\nModification: transformed coordinates and sampled medians. See stroke manifest for per-character source/review status.\n');
  console.log(`Packaged ${Object.keys(entries).length} static glyphs and writing data (${Object.keys(manifest.characters).length} overrides).`);
 }
