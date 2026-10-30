@@ -55,7 +55,7 @@ self.addEventListener('fetch', (event) => {
     
     // Cache First, Network Fallback with Dynamic Caching
     event.respondWith(
-        caches.open(CACHE_VERSION).then(cache => ['no-store', 'reload'].includes(event.request.cache) ? undefined : cache.match(event.request)).then((cachedResponse) => {
+        caches.open(CACHE_VERSION).then(cache => ['no-store', 'reload'].includes(event.request.cache) ? undefined : cache.match(event.request)).catch(() => undefined).then((cachedResponse) => {
             if (cachedResponse) {
                 return cachedResponse;
             }

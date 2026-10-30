@@ -2,10 +2,10 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const vm=require('node:vm');
 const fs=require('node:fs');
-function worker({cached,offline=false}={}) {
+function worker({cached,offline=false,cacheFailure=false}={}) {
  const handlers={},matches=[];
  const ctx=vm.createContext({self:{registration:{scope:'https://test/preview/'},addEventListener:(name,fn)=>handlers[name]=fn},
-  caches:{open:async()=>({match:async(...args)=>{matches.push(args);return cached;},put:async()=>{throw Error('quota');}})},
+  caches:{open:async()=>{if(cacheFailure)throw Error('storage blocked');return {match:async(...args)=>{matches.push(args);return cached;},put:async()=>{throw Error('quota');}};}},
   fetch:async()=>{if(offline)throw Error('offline');return new Response('network');},Response});
  vm.runInContext(fs.readFileSync('sw.js','utf8'),ctx);
  return {async get(cache='default',accept='application/json'){
@@ -22,4 +22,8 @@ test('retry bypasses stale cache and quota failure does not break network succes
  assert.equal(await (await w.get('reload')).text(),'network');assert.equal(w.matches.length,0);
  assert.equal(await (await w.get()).text(),'stale');
  assert.equal(w.matches[0].length,1,'query versions are not ignored');
+});
+
+test('blocked cache storage still permits successful network data',async()=>{
+ const w=worker({cacheFailure:true});assert.equal(await (await w.get()).text(),'network');
 });
