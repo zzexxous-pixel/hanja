@@ -64,3 +64,22 @@ test('13 real strokes can be graded to completion from the converted medians',as
  }
  await expect(page.locator('#modal-stroke-status')).toHaveText('🎉 완벽하게 작성했습니다!');
 });
+test('産 is full width in the card and shares the corrected outline with writing',async({page})=>{
+ await openCharacter(page,'産');
+ await expect(page.locator('#modal-hanja')).toHaveText('産');
+ await expect(page.locator('#chip-total-strokes')).toHaveText('총 11획');
+ await expect(page.locator('#chip-radical-strokes')).toHaveText('부수 5획 (잔여 6획)');
+ const data=await page.evaluate(()=>StrokeData.load('産'));
+ const xs=data.medians.flat().map(p=>p[0]);
+ expect(Math.max(...xs)-Math.min(...xs)).toBeGreaterThan(650);
+ expect(Math.max(...xs)).toBeGreaterThan(800);
+ const source=new URL('assets/glyphs/7523.svg',page.url()).href;
+ const svg=await (await page.request.get(source)).text();
+ for(const path of data.strokes)expect(svg).toContain(`d="${path}"`);
+ await expect(page.locator('#modal-hanja img')).toHaveAttribute('src','assets/glyphs/7523.svg');
+ await page.locator('[data-action="close-modal"]').click();
+ await expect(page.locator('#detail-modal')).toBeHidden();
+ const card=page.locator('.hanja-card-wrapper').filter({has:page.locator('img[src="assets/glyphs/7523.svg"]')});
+ await expect(card).toBeVisible();
+ await expect.poll(()=>card.locator('img').evaluate(img=>img.complete&&img.naturalWidth>0)).toBe(true);
+});

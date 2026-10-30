@@ -31,3 +31,16 @@ test('resolver deduplicates loads, caches successes, and retries failures withou
  assert.equal(calls.filter(p=>p.endsWith('656C.json')).length,2);
  assert.ok(calls.every(p=>p.startsWith('assets/strokes/')));
 });
+test('産 uses a full standalone outline instead of the narrow default component',async()=>{
+ const {selectData,glyphSvg}=await import('../../scripts/strokes.mjs');
+ const m=JSON.parse(fs.readFileSync('data/stroke-overrides/manifest.json'));
+ const {base,data,override}=selectData('.',{h:'産'},m);
+ const extent=d=>{const x=d.medians.flat().map(p=>p[0]);return {min:Math.min(...x),max:Math.max(...x)};};
+ assert.ok(extent(base).max<600,'regression fixture is the narrow original');
+ assert.ok(extent(data).max>800,'replacement reaches the right side');
+ assert.ok(extent(data).max-extent(data).min>650,'replacement spans the standalone glyph width');
+ assert.equal(data.strokes.length,11);assert.equal(data.medians.length,11);
+ assert.equal(override.codePoint,'7523');
+ assert.deepEqual(data.radStrokes,[6,7,8,9,10]);
+ for(const path of data.strokes)assert.ok(glyphSvg(data).includes(`d="${path}"`));
+});
