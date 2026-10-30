@@ -1,4 +1,4 @@
-// 문자 기반 저장소. migrateLegacy는 구버전 사용자 전환 기간 후 제거할 수 있습니다.
+// 신/구버전은 별도 키로 독립 동작합니다. migrateLegacy는 최초 복사만 수행하는 임시 호환 코드입니다.
 (function (global) {
     'use strict';
     const KEY = 'hanja_bookmarks_v2';
@@ -24,7 +24,8 @@
         }
 
         return {
-            // TEMP: 마지막 선택 급수의 기존 정렬 순서로 인덱스를 복원합니다.
+            // TEMP: 신버전 값이 없을 때만 최초 복사합니다. 구버전은 읽기만 하며 삭제/수정/동기화하지 않습니다.
+            // 마지막 선택 급수의 기존 정렬 순서로 인덱스를 복원합니다.
             migrateLegacy(data) {
                 if (hasCurrentData) return;
                 let legacy;
@@ -32,10 +33,9 @@
                 if (!Array.isArray(legacy)) return;
                 characters = [...new Set(legacy.filter(i => Number.isInteger(i) && i >= 0 && data[i])
                     .map(i => data[i].h))];
-                // 새 데이터 쓰기에 성공한 뒤에만 구버전 값을 제거합니다.
-                if (persist()) {
-                    try { storage.removeItem(LEGACY_KEY); } catch (_) { /* 새 형식이 우선됩니다. */ }
-                }
+                // 성공 여부와 관계없이 구버전 원본은 그대로 유지합니다.
+                // 실패하면 다음 실행에서 복사를 재시도하고, 성공하면 v2가 독립적인 원본이 됩니다.
+                persist();
             },
             has(character) { return characters.includes(character); },
             toggle(character) {

@@ -21,7 +21,7 @@ test('legacy bookmark migrates without interaction and survives grade changes/re
     await expect(page.locator('.star-wrapper-0')).toHaveClass(/\bstarred\b/);
     const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('hanja_bookmarks_v2')));
     expect(saved).toEqual({schemaVersion:2,characters:['價']});
-    expect(await page.evaluate(() => localStorage.getItem('hanja_bookmarks'))).toBeNull();
+    expect(await page.evaluate(() => localStorage.getItem('hanja_bookmarks'))).toBe('[0,0,9999]');
     await grade(page, '8급');
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('hanja_bookmarks_v2')).characters)).toEqual(['價']);
     await grade(page, '4급');
@@ -30,6 +30,7 @@ test('legacy bookmark migrates without interaction and survives grade changes/re
     await page.locator('.star-wrapper-0').click();
     await page.reload();
     await expect(page.locator('.star-wrapper-0')).toHaveClass(/\bunstarred\b/);
+    expect(await page.evaluate(() => localStorage.getItem('hanja_bookmarks'))).toBe('[0,0,9999]');
 });
 test('grade 3 page 13 is a normal page, not the favorites tab', async ({ page }) => {
     await page.goto('./'); await grade(page, '3급');
@@ -39,4 +40,32 @@ test('grade 3 page 13 is a normal page, not the favorites tab', async ({ page })
     await page.locator('#tab-7').click();
     await expect(page.locator('#page-indicator')).toHaveText('★ / 20');
     await expect(page.locator('#table-view-container')).toContainText('즐겨찾기 한자가 없습니다.');
+});
+
+test('old and new favorites can change independently across reloads', async ({ page }) => {
+    await page.goto('./');
+    await page.evaluate(() => {
+        localStorage.clear();
+        localStorage.setItem('hanja_grade', '4급');
+        localStorage.setItem('hanja_bookmarks', '[0]');
+    });
+    await page.reload();
+    await expect(page.locator('.star-wrapper-0')).toHaveClass(/\bstarred\b/);
+    // New app clears its copy, while the old app's favorite stays selected.
+    await page.locator('.star-wrapper-0').click();
+    expect(await page.evaluate(() => localStorage.getItem('hanja_bookmarks'))).toBe('[0]');
+    // Simulate old-app index writes in another tab on the same origin.
+    const oldTab = await page.context().newPage();
+    await oldTab.goto('./');
+    await oldTab.evaluate(() => localStorage.setItem('hanja_bookmarks', '[0,1]'));
+    await page.reload();
+    await expect(page.locator('.star-wrapper-0')).toHaveClass(/\bunstarred\b/);
+    await expect(page.locator('.star-wrapper-1')).toHaveClass(/\bunstarred\b/);
+    await page.locator('.star-wrapper-2').click();
+    expect(await oldTab.evaluate(() => localStorage.getItem('hanja_bookmarks'))).toBe('[0,1]');
+    await oldTab.evaluate(() => localStorage.setItem('hanja_bookmarks', '[]'));
+    await page.reload();
+    await expect(page.locator('.star-wrapper-2')).toHaveClass(/\bstarred\b/);
+    expect(await page.evaluate(() => localStorage.getItem('hanja_bookmarks'))).toBe('[]');
+    await oldTab.close();
 });
