@@ -124,8 +124,7 @@ function buildFavoritesDOM() {
 }
 
 function glyphMarkup(character) {
-    const code = character.codePointAt(0).toString(16).toUpperCase().padStart(4, '0');
-    return `<img class="hanja-outline" src="assets/glyphs/${code}.svg" alt="" aria-hidden="true" loading="lazy" decoding="async" width="64" height="64"><span class="sr-only">${character}</span>`;
+    return GlyphStore.markup(character);
 }
 
 function generateTableHTML(t, pageData, titleLabel) {
@@ -238,6 +237,7 @@ function switchTab(tabNum) {
         container.appendChild(tabCache[tabNum]);
     }
     
+    GlyphStore.hydrate(container);
     const tabBtn7 = document.getElementById('tab-7');
     const pagerWrapper = document.getElementById('pager-wrapper');
     const pageIndicator = document.getElementById('page-indicator');
@@ -408,6 +408,7 @@ function openModal(index) {
     // 1. 헤더 데이터 바인딩
     document.getElementById('modal-idx').innerText = `NO. ${String(index + 1).padStart(3, '0')}`;
     document.getElementById('modal-hanja').innerHTML = glyphMarkup(data.h);
+    GlyphStore.hydrate(document.getElementById('modal-hanja'));
     document.getElementById('modal-hun').innerText = data.m;
     document.getElementById('naver-link').href = `https://hanja.dict.naver.com/#/search?query=${encodeURIComponent(data.h)}`;
 

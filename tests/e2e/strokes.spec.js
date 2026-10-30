@@ -13,7 +13,7 @@ test.beforeEach(async({page})=>{
 });
 test('cards use static outlines, and 13-stroke 敬 shares data with the real local writer',async({page})=>{
  await expect(page.locator('.hanja-card-wrapper .hanja-outline')).toHaveCount(50);
- await expect.poll(()=>page.locator('.hanja-outline').first().evaluate(img=>img.complete&&img.naturalWidth>0)).toBe(true);
+ await expect(page.locator('.hanja-card-wrapper .hanja-outline[data-state="ready"]')).toHaveCount(50);
  await openCharacter(page,'敬');
  await expect(page.locator('#chip-total-strokes')).toHaveText('총 13획');
  await expect(page.locator('#chip-radical-strokes')).toHaveText('부수 4획 (잔여 9획)');
@@ -40,7 +40,7 @@ test('exact-codepoint characters missing from default data still display and wri
  await openCharacter(page,'敎');
  await expect(page.locator('#chip-total-strokes')).toHaveText('총 11획');
  await expect(page.locator('#chip-radical-strokes')).toHaveText('부수 정보 미확인');
- await expect(page.locator('#modal-hanja .hanja-outline')).toHaveAttribute('src','assets/glyphs/654E.svg');
+ await expect(page.locator('#modal-hanja .hanja-outline')).toHaveAttribute('data-glyph','654E');
 });
 test('13 real strokes can be graded to completion from the converted medians',async({page})=>{
  await openCharacter(page,'敬');
@@ -76,10 +76,46 @@ test('産 is full width in the card and shares the corrected outline with writin
  const source=new URL('assets/glyphs/7523.svg',page.url()).href;
  const svg=await (await page.request.get(source)).text();
  for(const path of data.strokes)expect(svg).toContain(`d="${path}"`);
- await expect(page.locator('#modal-hanja img')).toHaveAttribute('src','assets/glyphs/7523.svg');
+ await expect(page.locator('#modal-hanja .hanja-outline')).toHaveAttribute('data-glyph','7523');
  await page.locator('[data-action="close-modal"]').click();
  await expect(page.locator('#detail-modal')).toBeHidden();
- const card=page.locator('.hanja-card-wrapper').filter({has:page.locator('img[src="assets/glyphs/7523.svg"]')});
+ const card=page.locator('.hanja-card-wrapper').filter({has:page.locator('[data-glyph="7523"]')});
  await expect(card).toBeVisible();
- await expect.poll(()=>card.locator('img').evaluate(img=>img.complete&&img.naturalWidth>0)).toBe(true);
+ await expect(card.locator('.hanja-outline')).toHaveAttribute('data-state','ready');
+ expect(await card.locator('path').count()).toBe(11);
+});
+
+test('50 cards use one glyph batch, not 50 individual image requests',async({page})=>{
+ const requests=[];
+ page.on('request',request=>{if(request.url().includes('/assets/glyphs/'))requests.push(request.url());});
+ await page.reload();
+ await expect(page.locator('.hanja-card-wrapper .hanja-outline[data-state="ready"]')).toHaveCount(50);
+ expect(requests).toHaveLength(1);
+ expect(requests[0]).toMatch(/batch-0-[a-f0-9]+\.json$/);
+ expect(await page.locator('.hanja-card-wrapper img').count()).toBe(0);
+});
+test('transient glyph HTTP failure retries without reloading',async({page})=>{
+ let count=0;
+ await page.route('**/assets/glyphs/batch-0-*.json',route=>{
+  if(++count===1)return route.fulfill({status:503,body:'temporary'});
+  return route.continue();
+ });
+ await page.reload();
+ await expect(page.locator('.hanja-card-wrapper .hanja-outline[data-state="ready"]')).toHaveCount(50);
+ expect(count).toBe(2);
+});
+test('invalid batches fall back readably then recover on reconnect without a page reload',async({page})=>{
+ let failed=true,count=0;
+ await page.route('**/assets/glyphs/batch-0-*.json',route=>{
+  count++;
+  return failed?route.fulfill({status:200,contentType:'application/json',body:'{}'}):route.continue();
+ });
+ await page.reload();
+ await expect(page.locator('.hanja-card-wrapper .hanja-outline[data-state="fallback"]')).toHaveCount(50);
+ expect(count).toBe(3);
+ expect(await page.locator('.hanja-card-wrapper .hanja-outline text').count()).toBe(50);
+ failed=false;
+ await page.evaluate(()=>window.dispatchEvent(new Event('online')));
+ await expect(page.locator('.hanja-card-wrapper .hanja-outline[data-state="ready"]')).toHaveCount(50);
+ expect(count).toBe(4);
 });

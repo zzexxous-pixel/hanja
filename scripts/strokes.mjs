@@ -63,13 +63,23 @@ export function packageStrokes(src,dest) {
  const manifest=JSON.parse(readFileSync(join(src,'data/stroke-overrides/manifest.json')));
  const assets=join(dest,'assets');
  for(const part of ['strokes','glyphs','vendor','licenses'])mkdirSync(join(assets,part),{recursive:true});
- const entries={};
- for(const item of characters(src)) {
+ const entries={}, batches=[], glyphIndex={};
+ const list=characters(src);
+ for(const [index,item] of list.entries()) {
   const {data,override}=selectData(src,item,manifest),code=codePoint(item.h);
   writeFileSync(join(assets,'strokes',code+'.json'),JSON.stringify(data));
   writeFileSync(join(assets,'glyphs',code+'.svg'),glyphSvg(data));
+  const batch=Math.floor(index/50);
+  (batches[batch] ||= {})[code]=data.strokes;
+  glyphIndex[code]=batch;
   entries[item.h]={file:code+'.json',strokes:data.strokes.length,source:override?'override':'hanzi-writer-data@2.0.1',sourceUrl:override?.sourceUrl||'https://github.com/chanind/hanzi-writer-data',license:'Arphic Public License',reviewStatus:override?.reviewStatus||'unreviewed'};
  }
+ const files=batches.map((batch,i)=>{
+  const text=JSON.stringify(batch),hash=createHash('sha256').update(text).digest('hex').slice(0,16);
+  const file=`batch-${i}-${hash}.json`;
+  writeFileSync(join(assets,'glyphs',file),text);return file;
+ });
+ writeFileSync(join(dest,'glyph-index.js'),`window.GLYPH_INDEX=${JSON.stringify({files,characters:glyphIndex})};\n`);
  writeFileSync(join(assets,'strokes/manifest.json'),JSON.stringify({schemaVersion:1,characters:entries}));
  cpSync(join(dirname(require.resolve('hanzi-writer/package.json')),'dist/hanzi-writer.min.js'),join(assets,'vendor/hanzi-writer.min.js'));
  cpSync(join(dirname(require.resolve('hanzi-writer/package.json')),'LICENSE'),join(assets,'licenses/hanzi-writer-MIT.txt'));
