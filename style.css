@@ -530,3 +530,7 @@ input[type="range"]::-webkit-slider-thumb:active {
 .btn-writing-action.btn-accent-blue:hover {
     background: #1d4ed8;
 }
+/* Static vector outlines, no per-card animation engine or font fallback. */
+.hanja-glyph { display: inline-block; position: relative; width: 1em; height: 1em; line-height: 1; vertical-align: middle; }
+.hanja-outline { display: block; width: 100%; height: 100%; object-fit: contain; }
+.stroke-load-error { color: #be123c; font-size: 14px; padding: 16px; text-align: center; }

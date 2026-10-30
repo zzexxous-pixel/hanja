@@ -1,49 +1,26 @@
-name: 운영 서버(hanja) 원터치 수동 배포
+name: 운영 서버(hanja) 수동 이관
 on:
-  workflow_dispatch: # 깃허브 Actions 탭에 수동 배포 버튼 생성
-
+  workflow_dispatch:
+permissions:
+  contents: read
 jobs:
-  deploy-to-prod:
-    timeout-minutes: 10
+  verify:
+    if: github.ref == 'refs/heads/main' && github.repository == 'zzexxous-pixel/hanja-test'
+    uses: ./.github/workflows/verify.yml
+  transfer:
+    needs: verify
     runs-on: ubuntu-latest
     steps:
-    - name: 1. 테스트 저장소 소스코드 무결성 동기화
-      uses: actions/checkout@v5
-      with:
-        fetch-depth: 0 # 히스토리를 통째로 넘기기 위해 이력을 모두 가져옵니다.
-        persist-credentials: false # 💡 [치트키] 일꾼의 임시 인증 정보 박제를 막아, 우리의 SYNC_TOKEN이 덮어써지는 현상을 원천 차단합니다!
-
-    - name: 2. Node.js 가상 환경 런타임 구축
-      uses: actions/setup-node@v5
-      with:
-        node-version: lts/*
-
-    - name: 3. Playwright 브라우저 캐시 상태 확인
-      uses: actions/cache@v5
-      id: playwright-cache
-      with:
-        path: ~/.cache/ms-playwright
-        key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-playwright-
-
-    - name: 4. 프로젝트 의존성 라이브러리 자동 설치
-      run: npm install
-
-    - name: 5. Playwright 브라우저 엔진 및 리눅스 종속성 무결성 설치
-      run: npx playwright install --with-deps chromium
-
-    - name: 6. 🔥 운영 이관 전 10대 철벽 시나리오 최종 전수 검증
-      run: npx playwright test
-
-    # 🚀 이제 방해꾼 없이 깨끗한 권한으로 운영 저장소 이력을 통째로 갱신합니다.
-    - name: 7. 테스트 통과 완료본 운영(hanja) 저장소로 무결성 원터치 배포
-      run: |
-        git config --global user.name "GitHub Actions"
-        git config --global user.email "actions@github.com"
-        
-        # SYNC_TOKEN 마스터키를 사용하여 운영 레포지토리를 production 원격지로 깔끔하게 등록
-        git remote add production https://${{ secrets.SYNC_TOKEN }}@github.com/zzexxous-pixel/hanja.git
-        
-        # 테스트 레포의 완전히 검증된 main 브랜치 이력 전체를 운영 레포로 강제 푸시합니다.
-        git push production main:main --force
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      # Existing source-repository transfer convention. No second npm install/build here.
+      # The hanja repository's main Pages workflow verifies/packages the production copy.
+      - name: Transfer approved main to production
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          git remote add production "https://x-access-token:${SYNC_TOKEN}@github.com/zzexxous-pixel/hanja.git"
+          git push production HEAD:main --force

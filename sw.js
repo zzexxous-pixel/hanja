@@ -1,4 +1,5 @@
-const CACHE_VERSION = 'bareunhanja-{{APP_VERSION}}';
+const CACHE_PREFIX = `bareunhanja-${self.registration.scope}-`;
+const CACHE_VERSION = `${CACHE_PREFIX}{{APP_VERSION}}`;
 
 // 반드시 로컬에 존재하는 핵심 파일만 프리캐싱 (하나라도 404면 설치 중단 방지)
 const PRECACHE_ASSETS = [
@@ -13,6 +14,10 @@ const PRECACHE_ASSETS = [
     './audioEngine.js',
     './speechEngine.js',
     './writingEngine.js',
+    './strokeData.js',
+    './assets/vendor/hanzi-writer.min.js',
+    './assets/strokes/manifest.json',
+    './bookmarkStore.js',
     './script.js'
 ];
 
@@ -30,7 +35,7 @@ self.addEventListener('activate', (event) => {
         caches.keys().then((keys) => {
             return Promise.all(
                 keys.map((key) => {
-                    if (key !== CACHE_VERSION) {
+                    if (key.startsWith(CACHE_PREFIX) && key !== CACHE_VERSION) {
                         return caches.delete(key);
                     }
                 })
@@ -48,7 +53,7 @@ self.addEventListener('fetch', (event) => {
     
     // Cache First, Network Fallback with Dynamic Caching
     event.respondWith(
-        caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
+        caches.open(CACHE_VERSION).then(cache => cache.match(event.request, { ignoreSearch: true })).then((cachedResponse) => {
             if (cachedResponse) {
                 return cachedResponse;
             }
@@ -65,7 +70,7 @@ self.addEventListener('fetch', (event) => {
             }).catch(() => {
                 // 오프라인 상태에서 HTML 요청 실패 시 메인 페이지 서빙
                 if (event.request.headers.get('accept')?.includes('text/html')) {
-                    return caches.match('./index.html', { ignoreSearch: true });
+                    return caches.open(CACHE_VERSION).then(cache => cache.match('./index.html', { ignoreSearch: true }));
                 }
             });
         })

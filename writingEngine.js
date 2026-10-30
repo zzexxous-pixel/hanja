@@ -6,18 +6,17 @@
 (function (global) {
   'use strict';
 
-  function loadHanziWriter(callback) {
-    if (typeof global.HanziWriter !== 'undefined') {
-      callback();
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/hanzi-writer@3.5/dist/hanzi-writer.min.js';
-    script.onload = callback;
-    script.onerror = function () {
-      console.error('[WritingEngine] HanziWriter 라이브러리 로드 실패');
-    };
-    document.head.appendChild(script);
+  let libraryPromise;
+  function loadHanziWriter(callback, onError) {
+    if (global.HanziWriter) { callback(); return; }
+    if (!libraryPromise) libraryPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'assets/vendor/hanzi-writer.min.js';
+      script.onload = resolve;
+      script.onerror = () => { script.remove(); libraryPromise = null; reject(new Error('쓰기 엔진 로딩 실패')); };
+      document.head.appendChild(script);
+    });
+    libraryPromise.then(callback).catch(onError);
   }
 
   function WritingEngine(options) {
@@ -75,7 +74,7 @@
     this._initDOM();
     loadHanziWriter(() => {
       this._initWriter();
-    });
+    }, (error) => this._loadError(error));
   }
 
   WritingEngine.prototype = {
@@ -136,6 +135,17 @@
       this._observer.observe(this.targetEl, { childList: true, subtree: true });
     },
 
+    _loadError: function (error) {
+      this.isReady = false;
+      this.hasLoadError = true;
+      this.meta.totalStrokes = 0;
+      this.meta.loadError = true;
+      this._notifyStrokeChange();
+      this.targetEl.innerHTML = '<p class="stroke-load-error" role="alert">획 데이터를 불러오지 못했습니다. 창을 닫고 다시 열어 주세요.</p>';
+      if (typeof this.options.onCharLoaded === 'function') this.options.onCharLoaded(this.meta);
+      console.error('[WritingEngine]', error);
+    },
+
     _initWriter: function () {
       if (!global.HanziWriter) return;
       this.targetEl.innerHTML = '';
@@ -143,6 +153,7 @@
       const penWidth = Math.max(16, Math.round(this.size * 0.055));
 
       this.writer = global.HanziWriter.create(this.targetEl, this.char, {
+        charDataLoader: character => global.StrokeData.load(character),
         width: this.size,
         height: this.size,
         padding: Math.max(10, Math.round(this.size * 0.05)),
@@ -160,6 +171,7 @@
         highlightOnComplete: false,
         onLoadCharDataSuccess: (data) => {
           this._parseCharMeta(data);
+          this.hasLoadError = false;
           this.isReady = true;
           this._applyMode();
           this._tagOutlineRadicals();
@@ -170,7 +182,7 @@
           }
         },
         onLoadCharDataError: (err) => {
-          console.error('[WritingEngine] 한자 데이터 로드 실패:', err);
+          this._loadError(err);
         }
       });
     },
@@ -306,15 +318,18 @@
       if (!char) return;
       this.char = char;
       if (this.writer) {
+        if (this.hasLoadError) { this._initWriter(); return; }
         this.isReady = false;
         this.meta.totalStrokes = 0;
         this._startObserver();
 
         Promise.all([
           this.writer.setCharacter(char),
-          global.HanziWriter.loadCharacterData(char)
+          global.StrokeData.load(char)
         ]).then(([_, charData]) => {
+          if (this.char !== char) return;
           this._parseCharMeta(charData);
+          this.hasLoadError = false;
           this.isReady = true;
           this._applyMode();
           this._tagOutlineRadicals();
@@ -322,8 +337,10 @@
             this.options.onCharLoaded(this.meta);
           }
         }).catch((err) => {
-          console.error('[WritingEngine] 한자 데이터 변경 로드 실패:', err);
+          if (this.char === char) this._loadError(err);
         });
+      } else {
+        loadHanziWriter(() => this._initWriter(), error => this._loadError(error));
       }
     },
 
@@ -353,7 +370,7 @@
     },
 
     pauseAnimation: function () {
-      if (!this.writer) return;
+      if (!this.writer || !this.isReady) return;
       this.writer.pauseAnimation();
     },
 

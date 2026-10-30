@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "authority": "대한검정회",
+  "sourcePage": "https://www.hanja.ne.kr/jupsu/jupsu07_01.asp",
+  "characters": {
+    "敬": {
+      "strokeCount": 13,
+      "evidence": "User-provided 대한검정회 reference and confirmation on 2026-10-30",
+      "shapeReviewed": false,
+      "orderReviewed": false
+    }
+  }
+}
