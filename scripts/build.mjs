@@ -4,6 +4,8 @@ import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
+import { packageStrokes } from './strokes.mjs';
+import { writeAuditReport } from './audit-glyphs.mjs';
 const require = createRequire(import.meta.url);
 const preview = process.argv.includes('--preview');
 const out = resolve('_site');
@@ -18,9 +20,13 @@ function snapshot(ref, name) {
 }
 function pack(src, dest, ref, suffix) {
   mkdirSync(dest, {recursive:true});
-  const assets = ['index.html','style.css','hanja_data.js','audioEngine.js','speechEngine.js','writingEngine.js','script.js','bookmarkStore.js','sw.js','manifest.webmanifest','icon-192.png','icon-512.png','favicon.ico','img'];
+  const assets = ['index.html','style.css','hanja_data.js','audioEngine.js','speechEngine.js','writingEngine.js','script.js','bookmarkStore.js','strokeData.js','sw.js','manifest.webmanifest','icon-192.png','icon-512.png','favicon.ico','img'];
   for (const file of assets) if (existsSync(join(src,file))) cpSync(join(src,file),join(dest,file),{recursive:true});
   execFileSync(process.execPath,[require.resolve('tailwindcss/lib/cli.js'),'--content', ['index.html','script.js','writingEngine.js'].map(f=>join(src,f)).join(','),'-o',join(dest,'tailwind-build.css'),'--minify'],{stdio:'inherit'});
+  if (existsSync(join(src,'data/stroke-overrides/manifest.json'))) {
+    packageStrokes(src,dest);
+    if (!process.env.GITHUB_REPOSITORY || process.env.GITHUB_REPOSITORY.endsWith('/hanja-test')) writeAuditReport(src,join(dest,'review'),{glyphBase:'../assets/glyphs',writeGlyphs:false});
+  }
   const base = readFileSync(join(src,'VERSION'),'utf8').trim();
   const versionCommit = git('log','-1','--format=%H',ref,'--','VERSION');
   const patch = git('rev-list','--count',`${versionCommit}..${ref}`);

@@ -14,6 +14,9 @@ const PRECACHE_ASSETS = [
     './audioEngine.js',
     './speechEngine.js',
     './writingEngine.js',
+    './strokeData.js',
+    './assets/vendor/hanzi-writer.min.js',
+    './assets/strokes/manifest.json',
     './bookmarkStore.js',
     './script.js'
 ];

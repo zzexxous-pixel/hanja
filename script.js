@@ -123,6 +123,11 @@ function buildFavoritesDOM() {
     return tableWrapper;
 }
 
+function glyphMarkup(character) {
+    const code = character.codePointAt(0).toString(16).toUpperCase().padStart(4, '0');
+    return `<img class="hanja-outline" src="assets/glyphs/${code}.svg" alt="" aria-hidden="true" loading="lazy" decoding="async" width="64" height="64"><span class="sr-only">${character}</span>`;
+}
+
 function generateTableHTML(t, pageData, titleLabel) {
     let gridHTML = `
         <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
@@ -152,9 +157,7 @@ function generateTableHTML(t, pageData, titleLabel) {
                     </span>
                 </div>
                 <div data-action="open-modal" data-index="${globalIdx}" class="w-full flex justify-center items-center my-2 cursor-pointer select-none">
-                    <span class="hanja-font dynamic-hanja-size font-bold text-slate-900 leading-none">
-                        ${item.h}
-                    </span>
+                    <span class="dynamic-hanja-size hanja-glyph">${glyphMarkup(item.h)}</span>
                 </div>
                 <div data-action="click-hun" data-index="${globalIdx}" class="w-full text-center border-t border-slate-50 pt-2 cursor-pointer">
                     <span id="hun-text-${globalIdx}" class="quiz-blur-target ${solvedClass} dynamic-hun-size font-bold text-slate-600" data-type="hun">
@@ -404,7 +407,7 @@ function openModal(index) {
     
     // 1. 헤더 데이터 바인딩
     document.getElementById('modal-idx').innerText = `NO. ${String(index + 1).padStart(3, '0')}`;
-    document.getElementById('modal-hanja').innerText = data.h;
+    document.getElementById('modal-hanja').innerHTML = glyphMarkup(data.h);
     document.getElementById('modal-hun').innerText = data.m;
     document.getElementById('naver-link').href = `https://hanja.dict.naver.com/#/search?query=${encodeURIComponent(data.h)}`;
 
@@ -544,9 +547,17 @@ function updateModalSpecUI(meta) {
     const statusEl = document.getElementById('modal-stroke-status');
     const badgeEl = document.getElementById('modal-stroke-badge');
 
+    if (meta.loadError) {
+        if (totalEl) totalEl.innerText = '획 데이터 없음';
+        if (radEl) radEl.innerText = '-';
+        if (posEl) posEl.innerText = '-';
+        if (badgeEl) badgeEl.innerText = '획순: -';
+        if (statusEl) statusEl.innerText = '창을 닫고 다시 열어 재시도하세요.';
+        return;
+    }
     if (totalEl) totalEl.innerText = `총 ${meta.totalStrokes}획`;
-    if (radEl) radEl.innerText = `부수 ${meta.radCount}획 (잔여 ${meta.remainCount}획)`;
-    if (posEl) posEl.innerText = `위치: ${meta.radPosition}`;
+    if (radEl) radEl.innerText = meta.radCount ? `부수 ${meta.radCount}획 (잔여 ${meta.remainCount}획)` : '부수 정보 미확인';
+    if (posEl) posEl.innerText = meta.radCount ? `위치: ${meta.radPosition}` : '위치: 미확인';
     if (badgeEl) badgeEl.innerText = `획순: 0 / ${meta.totalStrokes}`;
     if (statusEl) {
         statusEl.className = 'text-blue-600 font-bold';
