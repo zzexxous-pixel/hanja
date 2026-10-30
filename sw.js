@@ -50,7 +50,7 @@ self.addEventListener('fetch', (event) => {
     
     // Cache First, Network Fallback with Dynamic Caching
     event.respondWith(
-        caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
+        caches.open(CACHE_VERSION).then(cache => cache.match(event.request, { ignoreSearch: true })).then((cachedResponse) => {
             if (cachedResponse) {
                 return cachedResponse;
             }
@@ -67,7 +67,7 @@ self.addEventListener('fetch', (event) => {
             }).catch(() => {
                 // 오프라인 상태에서 HTML 요청 실패 시 메인 페이지 서빙
                 if (event.request.headers.get('accept')?.includes('text/html')) {
-                    return caches.match('./index.html', { ignoreSearch: true });
+                    return caches.open(CACHE_VERSION).then(cache => cache.match('./index.html', { ignoreSearch: true }));
                 }
             });
         })
