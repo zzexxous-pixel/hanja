@@ -63,3 +63,6 @@
 - 로컬 구문/데이터 검사 및 단위 테스트 6개 통과, 정적 preview 패키징 통과.
 - GitHub Actions 41025691561: E2E 26/26 통과(21.7초), Pages 배포 성공, 배포 후 HTTP/SHA smoke 성공. https://github.com/zzexxous-pixel/hanja-test/actions/runs/41025691561
 - main 배포는 root(main)와 보존 preview 둘 다 E2E 검증하도록 구성. arena push에서는 수정된 preview만 검증하며 기존 main 소스까지 바꾸지 않는다.
+
+- 최종 코드 검증/배포: e1df782, Actions 41025913096. 단위6개 및 데스크톱/모바일 E2E26개 통과(19.8초), Pages 배포와 HTTP/SHA smoke 성공. https://github.com/zzexxous-pixel/hanja-test/actions/runs/41025913096
+- 이후 인수인계 문서만 갱신한 커밋은 paths-ignore에 따라 배포하지 않는다. 배포 SHA는 위 코드 커밋이다.
