@@ -124,7 +124,7 @@ function buildFavoritesDOM() {
 }
 
 function glyphMarkup(character) {
-    return GlyphStore.markup(character);
+    return GlyphStore.markup(character, currentGrade);
 }
 
 function generateTableHTML(t, pageData, titleLabel) {

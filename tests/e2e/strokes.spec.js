@@ -91,12 +91,13 @@ test('50 cards use one glyph batch, not 50 individual image requests',async({pag
  await page.reload();
  await expect(page.locator('.hanja-card-wrapper .hanja-outline[data-state="ready"]')).toHaveCount(50);
  expect(requests).toHaveLength(1);
- expect(requests[0]).toMatch(/batch-0-[a-f0-9]+\.json$/);
+ expect(requests[0]).toMatch(/batch-\d+-[a-f0-9]+\.json$/);
  expect(await page.locator('.hanja-card-wrapper img').count()).toBe(0);
 });
 test('transient glyph HTTP failure retries without reloading',async({page})=>{
  let count=0;
- await page.route('**/assets/glyphs/batch-0-*.json',route=>{
+ const file=await page.evaluate(()=>GLYPH_INDEX.files[GLYPH_INDEX.grades['4급'][0]]);
+ await page.route('**/assets/glyphs/'+file,route=>{
   if(++count===1)return route.fulfill({status:503,body:'temporary'});
   return route.continue();
  });
@@ -106,7 +107,8 @@ test('transient glyph HTTP failure retries without reloading',async({page})=>{
 });
 test('invalid batches fall back readably then recover on reconnect without a page reload',async({page})=>{
  let failed=true,count=0;
- await page.route('**/assets/glyphs/batch-0-*.json',route=>{
+ const file=await page.evaluate(()=>GLYPH_INDEX.files[GLYPH_INDEX.grades['4급'][0]]);
+ await page.route('**/assets/glyphs/'+file,route=>{
   count++;
   return failed?route.fulfill({status:200,contentType:'application/json',body:'{}'}):route.continue();
  });
@@ -118,4 +120,21 @@ test('invalid batches fall back readably then recover on reconnect without a pag
  await page.evaluate(()=>window.dispatchEvent(new Event('online')));
  await expect(page.locator('.hanja-card-wrapper .hanja-outline[data-state="ready"]')).toHaveCount(50);
  expect(count).toBe(4);
+});
+test('every grade batch matches the runtime Korean-reading page order',async({page})=>{
+ const mismatches=await page.evaluate(()=>{
+  const errors=[];
+  for(const [grade,pages] of Object.entries(GLYPH_INDEX.grades)){
+   const unique=new Map();
+   for(const key of GRADE_ORDER.slice(0,GRADE_ORDER.indexOf(grade)+1))
+    for(const item of hanjaNewData[key]||[])if(!unique.has(item.h))unique.set(item.h,item);
+   const sorted=[...unique.values()].sort((a,b)=>getEum(a.m).localeCompare(getEum(b.m),'ko')||a.m.localeCompare(b.m,'ko'));
+   pages.forEach((batch,page)=>{
+    const expected=sorted.slice(page*50,page*50+50).map(item=>item.h.codePointAt(0).toString(16).toUpperCase().padStart(4,'0')).sort();
+    if(JSON.stringify(expected)!==JSON.stringify([...GLYPH_INDEX.members[batch]].sort()))errors.push(`${grade}:${page+1}`);
+   });
+  }
+  return errors;
+ });
+ expect(mismatches).toEqual([]);
 });
