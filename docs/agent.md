@@ -180,3 +180,5 @@
 - origin/main WritingEngine의 기본 animateCharacter/animateStroke 구현 확인. 직접style/RAF/SVG노드순서 의존/overlay/skipQuizStroke 커밋 전부 제거. main의 공개 animateStroke로 한획씩 연속 재생하며 완료된획은 native state가 유지. 자동재생 획 사이에 quiz를 재시작하지 않음.
 - native API가 quiz를 취소하므로 펜접촉 시 현재완료획부터 quiz를 활성화하고 첫 mouse/touch 시작점부터 move/end 전체를 비동기 준비중 buffer후 재전달. 자동재생 중 바로쓰기를 유지. 손입력·이전획·정지·reset·문자전환의token 처리와 통합버튼 유지.
 - E2E 강화: native animateStroke 호출 확인, hint/skipQuizStroke 호출시실패; 三의 첫완료획 및 모든상위g의 opacity/display/offset을 전체자동재생중 추적; native재생중실제TouchEvent 첫획채점. 기존동일화면쓰기/undo 테스트 유지. 단위22개 통과, E2E58개 예정.
+- 최종코드7b0d9c9, Actions41185865725 성공: 단위22개, 데스크톱/모바일 E2E58개(51초), Pages10초/HTTP·SHA smoke5초 통과. native 재생중 실제TouchEvent첫획 입력과 이전획/직접쓰기 전환 통과. 三의 전체시연 동안 첫완료획 및 상위그룹 연속표시 검증 통과.
+- 사용자확인링크 /preview/?v=7b0d9c9 . 이번엔 main의 native API로 복귀했으며 직접SVG제어·skipQuizStroke를 사용하지 않는다. main소스 자체는 수정/병합 안 함. 실제 사용자기기에서 체감 해결은 확인을 기다릴 것.
