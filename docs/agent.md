@@ -206,3 +206,4 @@
 - script.js firstGradeByCharacter를 GRADE_ORDER+hanjaNewData에서최초1회구축. 카드생성/음성상태복원/탭리셋/팝업공유라벨사용. 정렬/즐겨찾기데이터변경없음.
 - installApp.js beforeinstallprompt 1회보관/직접클릭prompt, 취소/실패안내, iOS Safari공유→홈화면추가, 일반브라우저메뉴안내, standalone/appinstalled버튼비활성. 설치요청과실제설치완료구분. 기존pre/dev매니페스트사용. build복사허용목록+SWprecache추가.
 - 로컬check/단위31/build:preview통과. 신규E2E:누적급수및8급50카드라벨/팝업대조, 환경설정설치prompt취소/재클릭/완료상태. 예상64E2E, CI/배포확인예정. main/운영미변경.
+- bef1a7a Actions41190102383 성공: 단위31/E2E64(56.2초)/Pages9초/smoke8초 통과. 확인 /preview/?v=bef1a7a . 실제OS설치자체는브라우저지원/사용자승인필요, 자동검증은설치이벤트모의및실제UI동작임. test루트는기존main스냅샷유지(환경라벨dev만빌드삽입), 새설치/번호기능은preview에서확인.
