@@ -27,7 +27,6 @@
     const defaultOptions = {
       container: null,
       char: '永',
-      mode: 'demo', // 'demo' | 'practice'
       width: 320,
       height: 320,
       strokeColor: '#1e293b',
@@ -55,7 +54,6 @@
     }
 
     this.char = this.options.char || '永';
-    this.mode = this.options.mode || 'demo';
     this.size = this.options.width || 320;
     this.writer = null;
     this._observer = null;
@@ -68,6 +66,7 @@
       radStrokes: [],
       radPosition: '판별 중'
     };
+    this._playToken = 0;
     this.currentStroke = 0;
     this.isReady = false;
 
@@ -118,6 +117,15 @@
       this.targetEl.style.width = '100%';
       this.targetEl.style.height = '100%';
       this.container.appendChild(this.targetEl);
+      if (!this._interruptDrawing) {
+        this._interruptDrawing = () => {
+          this._playToken++;
+          if (this.isReady && this.writer) this.writer.resumeAnimation();
+        };
+        this.container.addEventListener('mousedown', this._interruptDrawing, true);
+        this.container.addEventListener('touchstart', this._interruptDrawing, {capture: true, passive: true});
+      }
+
 
       // 3. 비동기 렌더링 즉시 감지용 1회성 옵저버 시작
       this._startObserver();
@@ -136,6 +144,7 @@
     },
 
     _loadError: function (error) {
+      this._playToken++;
       this.isReady = false;
       this.hasLoadError = true;
       this.meta.totalStrokes = 0;
@@ -173,7 +182,7 @@
           this._parseCharMeta(data);
           this.hasLoadError = false;
           this.isReady = true;
-          this._applyMode();
+          this._resetSession();
           this._tagOutlineRadicals();
           this._notifyStrokeChange();
 
@@ -274,19 +283,17 @@
       return true;
     },
 
-    _applyMode: function () {
+    _resetSession: function () {
       if (!this.writer || !this.isReady) return;
 
+      this.writer.resumeAnimation();
       this.writer.cancelQuiz();
       this.writer.hideCharacter();
 
-      if (this.mode === 'demo') {
-        this.currentStroke = 0;
-        this.writer.showOutline();
-      } else if (this.mode === 'practice') {
-        this.currentStroke = 0;
-        this.startQuiz();
-      }
+      this._playToken++;
+      this.currentStroke = 0;
+      this.writer.showOutline();
+      this.startQuiz();
       this._tagOutlineRadicals();
       this._notifyStrokeChange();
     },
@@ -316,6 +323,7 @@
     // ★ 새 한자 로드 시 메타 리셋 및 1회성 Observer 재가동
     setCharacter: function (char) {
       if (!char) return;
+      this._playToken++;
       this.char = char;
       if (this.writer) {
         if (this.hasLoadError) { this._initWriter(); return; }
@@ -331,7 +339,7 @@
           this._parseCharMeta(charData);
           this.hasLoadError = false;
           this.isReady = true;
-          this._applyMode();
+          this._resetSession();
           this._tagOutlineRadicals();
           if (typeof this.options.onCharLoaded === 'function') {
             this.options.onCharLoaded(this.meta);
@@ -344,74 +352,68 @@
       }
     },
 
-    setMode: function (mode) {
-      if (this.mode === mode) return;
-      this.mode = mode;
-      this._applyMode();
-    },
-
     getMeta: function () {
       return Object.assign({}, this.meta);
     },
 
-    playAnimation: function () {
-      if (!this.writer || !this.isReady || this.mode !== 'demo') return;
+    // Quiz remains active while a public highlightStroke animation demonstrates the next stroke.
+    // A generation token prevents old animation callbacks from advancing after touch/back/reset.
+    playAnimation: async function () {
+      if (!this.writer || !this.isReady) return;
+      this.writer.resumeAnimation();
+      const token = ++this._playToken;
+      while (token === this._playToken && this.currentStroke < this.meta.totalStrokes) {
+        if (!await this._demonstrateStroke(token)) break;
+      }
+    },
 
-      this.writer.hideCharacter();
-      this.writer.animateCharacter({
-        onComplete: () => {
-          this.currentStroke = this.meta.totalStrokes;
-          this._notifyStrokeChange();
-          if (typeof this.options.onComplete === 'function') {
-            this.options.onComplete();
-          }
-        }
-      });
+    _demonstrateStroke: async function (token) {
+      const index = this.currentStroke;
+      const writer = this.writer;
+      await writer.highlightStroke(index);
+      if (token !== this._playToken || !this.isReady || this.writer !== writer || this.currentStroke !== index) return false;
+      this._advanceByDemo = true;
+      writer.skipQuizStroke();
+      this._advanceByDemo = false;
+      this.currentStroke = index + 1;
+      this._notifyStrokeChange();
+      return true;
     },
 
     pauseAnimation: function () {
-      if (!this.writer || !this.isReady) return;
-      this.writer.pauseAnimation();
+      this._playToken++;
+      if (this.writer && this.isReady) this.writer.pauseAnimation();
     },
 
     stepNextStroke: function () {
-      if (!this.writer || !this.isReady || this.mode !== 'demo') return;
-
-      if (this.currentStroke < this.meta.totalStrokes) {
-        this.writer.animateStroke(this.currentStroke, {
-          onComplete: () => {
-            this.currentStroke++;
-            this._notifyStrokeChange();
-          }
-        });
-      }
+      if (!this.writer || !this.isReady || this.currentStroke >= this.meta.totalStrokes) return;
+      this.writer.resumeAnimation();
+      this._demonstrateStroke(++this._playToken);
     },
 
     stepPrevStroke: function () {
-      if (!this.writer || !this.isReady || this.mode !== 'demo') return;
-
-      if (this.currentStroke > 0) {
-        this.currentStroke--;
-        this.writer.hideCharacter();
-        for (let i = 0; i < this.currentStroke; i++) {
-          this.writer.showStroke(i);
-        }
-        this._notifyStrokeChange();
-      }
+      if (!this.writer || !this.isReady) return;
+      this._playToken++;
+      this.writer.resumeAnimation();
+      this.currentStroke = Math.max(0, this.currentStroke - 1);
+      this.startQuiz();
+      this._notifyStrokeChange();
     },
 
     reset: function () {
       if (!this.writer || !this.isReady) return;
-      this._applyMode();
+      this._resetSession();
     },
 
     startQuiz: function () {
       if (!this.writer || !this.isReady) return;
 
-      this.currentStroke = 0;
+      if (this.currentStroke >= this.meta.totalStrokes) return;
       this.writer.quiz({
+        quizStartStrokeNum: this.currentStroke,
         showHintAfterMisses: 1,
         onCorrectStroke: (data) => {
+          this._playToken++;
           this.currentStroke = data.strokeNum + 1;
           this._notifyStrokeChange();
           if (typeof this.options.onStrokeSuccess === 'function') {
@@ -427,7 +429,7 @@
           this.currentStroke = this.meta.totalStrokes;
           this._notifyStrokeChange();
           if (typeof this.options.onComplete === 'function') {
-            this.options.onComplete();
+            this.options.onComplete({source: this._advanceByDemo ? 'demo' : 'writing'});
           }
         }
       });

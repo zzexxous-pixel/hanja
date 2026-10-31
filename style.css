@@ -534,3 +534,15 @@ input[type="range"]::-webkit-slider-thumb:active {
 .hanja-glyph { display: inline-block; position: relative; width: 1em; height: 1em; line-height: 1; vertical-align: middle; }
 .hanja-outline { display: block; width: 100%; height: 100%; object-fit: contain; }
 .stroke-load-error { color: #be123c; font-size: 14px; padding: 16px; text-align: center; }
+
+/* Phones: preserve the chosen glyph sizes while fitting two cards per row. */
+@media (max-width: 639px) {
+    main { padding: 1rem 0.5rem !important; }
+    .hanja-responsive-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        padding: 0.5rem !important;
+        gap: 0.5rem !important;
+    }
+    .hanja-card-wrapper { min-width: 0; padding: 0.5rem 0.25rem !important; }
+    .dynamic-hun-size { overflow-wrap: anywhere; }
+}

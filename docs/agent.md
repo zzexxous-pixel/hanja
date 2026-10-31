@@ -148,3 +148,11 @@
 ## 2026-10-31 메인 카드再調整
 - 사용자 추가 요청: 현재 크기에서 한자 +5pt(50→55pt), 훈음 -2pt(19→17pt). 상세창 크기 유지. 카드 SVG 및 그리드 기준 변수 함께 반영. E2E 크기 기대값 갱신.
 - 코드207f66d, Actions41157120174 성공: 단위16개, desktop/mobile E2E48개(32.6초), Pages 및 배포후 smoke 통과. /preview/에55pt/17pt 반영, main 미병합.
+
+## 2026-10-31 모바일2열 및 통합 쓰기 화면
+- 사용자 모바일 스크린샷:55pt의 2.2배 최소폭과 중첩패딩 때문에1열이 됨. 639px 이하에 명시적2열(minmax(0,1fr)), main/grid/card패딩 및 gap축소. 글자55pt/훈음17pt 유지. 320/360/390px 2열/가로넘침 E2E 추가.
+- 획순시연/직접쓰기 탭 및 분리모드 제거. 항상 outline과 quiz 활성. 재생/정지/이전획/다음획/처음부터 컨트롤 공유.
+- HanziWriter.animateStroke/animateCharacter는 quiz를 취소하므로 사용하지 않음. 공개 highlightStroke로 다음획 시연 후 skipQuizStroke로 동일quiz진행. 직접쓰기 입력capture시 자동진행token무효화(기본HW mouse/touch 이벤트는 가로채지 않음); onCorrectStroke와 버튼도 같은currentStroke를 공유.
+- 이전획은 quizStartStrokeNum로 다시 시작, 완료 후에도 이전으로 돌아가 재작성 가능. 비공개/존재하지 않는 showStroke 호출 제거. pause/reset/문자전환/닫기 중 늦은 animation완료가 진행도를 바꾸지 않도록 generation token 사용.
+- 단위20개 통과. E2E는 기본화면에서13획실제채점 유지, 시연1획→직접쓰기→이전획→재작성→재생중직접쓰기 및 지연콜백 방지 추가. 총52개 예정. 브라우저/배포 결과 후속 기록.
+- 세션 복원 이력 다시 main merge였으므로 원격1bc43a0과 비교 후 동일활성branch로 soft 정렬(차이는 현재5개기능파일뿐). 기존코드/자료검수 이력 보존.

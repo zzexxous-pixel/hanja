@@ -138,15 +138,7 @@
                 </div>
             </div>
 
-            <!-- Line 3: 모드 전환 탭 -->
-            <div class="writing-tab-bar grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-xl mt-2 shrink-0">
-                <button id="btn-mode-demo" data-action="set-modal-mode" data-mode="demo" class="writing-tab-btn active">
-                    <i class="fa-solid fa-play text-xs mr-1"></i> 획순 시연
-                </button>
-                <button id="btn-mode-practice" data-action="set-modal-mode" data-mode="practice" class="writing-tab-btn">
-                    <i class="fa-solid fa-pen-nib text-xs mr-1"></i> 직접 쓰기
-                </button>
-            </div>
+            <p class="text-xs text-slate-500 mt-2 shrink-0">시연을 보거나 바로 써보세요. 직접 쓰면 자동 재생이 멈춥니다.</p>
 
             <div id="writing-viewport-wrapper" class="relative flex-grow flex items-center justify-center my-2 min-h-0">
                 <button id="btn-modal-prev-hanja" data-action="prev-modal-hanja" class="btn-modal-nav left-0 sm:left-1" title="이전 한자">
@@ -161,7 +153,7 @@
             </div>
 
             <div class="writing-control-panel shrink-0">
-                <div id="panel-mode-demo" class="space-y-1.5">
+                <div id="panel-writing-controls" class="space-y-1.5">
                     <div class="grid grid-cols-4 gap-1.5">
                         <button data-action="play-modal-writing" class="btn-writing-action btn-accent-red">
                             <i class="fa-solid fa-play"></i> 재생
@@ -178,11 +170,7 @@
                     </div>
                 </div>
 
-                <div id="panel-mode-practice" class="hidden">
-                    <button data-action="reset-modal-writing" class="w-full btn-writing-action btn-accent-blue py-2">
-                        <i class="fa-solid fa-rotate-left"></i> 처음부터 다시 쓰기
-                    </button>
-                </div>
+                <button data-action="reset-modal-writing" class="w-full btn-writing-action btn-neutral mt-1.5">처음부터 다시</button>
 
                 <!-- 실시간 상태 피드백 -->
                 <div class="flex justify-between items-center text-[11px] text-slate-400 font-semibold pt-1.5 px-0.5">

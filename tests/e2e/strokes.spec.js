@@ -7,6 +7,19 @@ async function openCharacter(page,character){
  await page.evaluate(i=>HanjaApp.switchTab(Math.floor(i/50)+1),index);
  await page.locator(`[data-action="open-modal"][data-index="${index}"]`).click();
 }
+async function drawStroke(page,character,index,backwards=false){return page.evaluate(async({character,index,backwards})=>{
+  const data=await StrokeData.load(character);
+  const svg=document.querySelector('#writingContainer > div > svg');
+  const rect=svg.getBoundingClientRect();
+  const size=Number(svg.getAttribute('width'));
+  const t=HanziWriter.getScalingTransform(size,size,Math.max(10,Math.round(size*0.05)));
+  const points=[...data.medians[index]];if(backwards)points.reverse();
+  const event=(type,point)=>svg.dispatchEvent(new MouseEvent(type,{bubbles:true,cancelable:true,clientX:rect.left+t.x+point[0]*t.scale,clientY:rect.top+size-t.y-point[1]*t.scale}));
+  event('mousedown',points[0]);for(const point of points.slice(1))event('mousemove',point);event('mouseup',points.at(-1));
+ },{character,index,backwards});
+}
+
+
 test.beforeEach(async({page})=>{
  await page.route(/https:\/\//,route=>route.abort());
  await page.goto('./');
@@ -21,8 +34,7 @@ test('cards use static outlines, and 13-stroke 敬 shares data with the real loc
  expect(data.strokes).toHaveLength(13);
  const svg=await (await page.request.get(new URL('assets/glyphs/656C.svg',page.url()).href)).text();
  for(const path of data.strokes)expect(svg).toContain(`d="${path}"`);
- await page.locator('#btn-mode-practice').click();
- await expect(page.locator('#modal-stroke-status')).toContainText('직접 한자를 써보세요');
+ await expect(page.locator('#modal-stroke-status')).toContainText('바로 써보세요');
  await expect(page.locator('#writingContainer div svg')).toBeVisible();
 });
 test('override failure never downgrades to 12 strokes; reopening retries successfully',async({page})=>{
@@ -45,17 +57,7 @@ test('exact-codepoint characters missing from default data still display and wri
 test('13 real strokes can be graded to completion from the converted medians',async({page})=>{
  await openCharacter(page,'敬');
  await expect(page.locator('#chip-total-strokes')).toHaveText('총 13획');
- await page.locator('#btn-mode-practice').click();
- const draw=async(index,backwards=false)=>page.evaluate(async({index,backwards})=>{
-  const data=await StrokeData.load('敬');
-  const svg=document.querySelector('#writingContainer > div > svg');
-  const rect=svg.getBoundingClientRect();
-  const size=Number(svg.getAttribute('width'));
-  const t=HanziWriter.getScalingTransform(size,size,Math.max(10,Math.round(size*0.05)));
-  const points=[...data.medians[index]];if(backwards)points.reverse();
-  const event=(type,point)=>svg.dispatchEvent(new MouseEvent(type,{bubbles:true,cancelable:true,clientX:rect.left+t.x+point[0]*t.scale,clientY:rect.top+size-t.y-point[1]*t.scale}));
-  event('mousedown',points[0]);for(const point of points.slice(1))event('mousemove',point);event('mouseup',points.at(-1));
- },{index,backwards});
+ const draw=(index,backwards=false)=>drawStroke(page,'敬',index,backwards);
  await draw(0,true);
  await expect(page.locator('#modal-stroke-status')).toContainText('올바르지 않습니다');
  for(let i=0;i<13;i++){
@@ -145,4 +147,39 @@ test('main card typography is 55pt hanja and 17pt hun',async({page})=>{
  expect(sizes.hun).toBeCloseTo(17*96/72,2);
  const glyph=page.locator('.hanja-card-wrapper .hanja-outline').first();
  const box=await glyph.boundingBox();expect(box.width).toBeCloseTo(sizes.hanja,0);expect(box.height).toBeCloseTo(sizes.hanja,0);
+});
+
+test('phones fit two cards at 320, 360, and 390 CSS pixels without shrinking glyphs',async({page})=>{
+ for(const width of [320,360,390]){
+  await page.setViewportSize({width,height:844});
+  const boxes=await page.locator('.hanja-card-wrapper').evaluateAll(nodes=>nodes.slice(0,3).map(n=>{const r=n.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right};}));
+  expect(Math.abs(boxes[0].y-boxes[1].y)).toBeLessThan(2);
+  expect(boxes[1].x).toBeGreaterThan(boxes[0].x);
+  expect(boxes[2].y).toBeGreaterThan(boxes[0].y);
+  expect(boxes[1].right).toBeLessThanOrEqual(width);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ }
+});
+test('one writing surface allows demo, handwriting, undo, and replay without mode tabs',async({page})=>{
+ await openCharacter(page,'敬');
+ await expect(page.locator('#chip-total-strokes')).toHaveText('총 13획');
+ await expect(page.locator('#btn-mode-demo, #btn-mode-practice')).toHaveCount(0);
+ await page.locator('[data-action="step-next-modal-stroke"]').click();
+ await expect(page.locator('#modal-stroke-badge')).toHaveText('획순: 1 / 13');
+ await drawStroke(page,'敬',1);
+ await expect(page.locator('#modal-stroke-badge')).toHaveText('획순: 2 / 13');
+ await page.locator('[data-action="step-prev-modal-stroke"]').click();
+ await expect(page.locator('#modal-stroke-badge')).toHaveText('획순: 1 / 13');
+ await drawStroke(page,'敬',1);
+ await expect(page.locator('#modal-stroke-badge')).toHaveText('획순: 2 / 13');
+ await page.locator('[data-action="reset-modal-writing"]').click();
+ await expect(page.locator('#modal-stroke-badge')).toHaveText('획순: 0 / 13');
+ await page.locator('[data-action="play-modal-writing"]').click();
+ await drawStroke(page,'敬',0);
+ await expect(page.locator('#modal-stroke-badge')).toHaveText('획순: 1 / 13');
+ // A delayed demo callback must not advance the shared cursor after handwriting takes control.
+ await page.waitForTimeout(1200);
+ await expect(page.locator('#modal-stroke-badge')).toHaveText('획순: 1 / 13');
+ await page.locator('[data-action="step-prev-modal-stroke"]').click();
+ await expect(page.locator('#modal-stroke-badge')).toHaveText('획순: 0 / 13');
 });

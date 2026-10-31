@@ -30,7 +30,6 @@ let titleClickTimer = null;
 
 // [신규] 쓰기 엔진 싱글톤 및 모달 상태 홀더
 let modalWriter = null;
-let currentModalMode = 'demo';
 let modalResizeObserver = null;
 
 function toggleBookmark(index, event) {
@@ -492,7 +491,6 @@ function initModalWritingEngine(char) {
         modalWriter = new WritingEngine({
             container: container,
             char: char,
-            mode: currentModalMode,
             width: initialSize,
             height: initialSize,
             onCharLoaded: (meta) => {
@@ -516,11 +514,11 @@ function initModalWritingEngine(char) {
                     status.innerText = reason;
                 }
             },
-            onComplete: () => {
+            onComplete: (result) => {
                 const status = document.getElementById('modal-stroke-status');
                 if (status) {
                     status.className = 'text-emerald-600 font-bold';
-                    status.innerText = '🎉 완벽하게 작성했습니다!';
+                    status.innerText = result?.source === 'demo' ? '획순 시연 완료 · 이전획으로 돌아가 써보세요.' : '🎉 완벽하게 작성했습니다!';
                 }
             }
         });
@@ -562,32 +560,7 @@ function updateModalSpecUI(meta) {
     if (badgeEl) badgeEl.innerText = `획순: 0 / ${meta.totalStrokes}`;
     if (statusEl) {
         statusEl.className = 'text-blue-600 font-bold';
-        statusEl.innerText = currentModalMode === 'demo' ? '획순 시연 준비 완료' : '직접 한자를 써보세요.';
-    }
-}
-
-function setModalMode(mode) {
-    currentModalMode = mode;
-    const btnDemo = document.getElementById('btn-mode-demo');
-    const btnPractice = document.getElementById('btn-mode-practice');
-    const panelDemo = document.getElementById('panel-mode-demo');
-    const panelPractice = document.getElementById('panel-mode-practice');
-
-    if (mode === 'demo') {
-        if (btnDemo) btnDemo.className = 'writing-tab-btn active';
-        if (btnPractice) btnPractice.className = 'writing-tab-btn';
-        if (panelDemo) panelDemo.classList.remove('hidden');
-        if (panelPractice) panelPractice.classList.add('hidden');
-    } else {
-        if (btnDemo) btnDemo.className = 'writing-tab-btn';
-        if (btnPractice) btnPractice.className = 'writing-tab-btn active';
-        if (panelDemo) panelDemo.classList.add('hidden');
-        if (panelPractice) panelPractice.classList.remove('hidden');
-    }
-
-    if (modalWriter) {
-        modalWriter.setMode(mode);
-        if (modalWriter.isReady) updateModalSpecUI(modalWriter.getMeta());
+        statusEl.innerText = '획순 시연 준비 완료 · 바로 써보세요.';
     }
 }
 
@@ -1094,9 +1067,6 @@ window.onload = function() {
                 break;
             case 'toggle-favorites':
                 toggleFavorites();
-                break;
-            case 'set-modal-mode':
-                setModalMode(actionBtn.getAttribute('data-mode'));
                 break;
             case 'prev-modal-hanja':
                 prevModalHanja();
