@@ -198,3 +198,5 @@
 - 사용자: preview=pre, test=dev, 운영표시없음. 급수선택드롭다운 오른쪽분홍색, 설치앱이름뒤에도동일추가.
 - 빌드시 환경라벨삽입 scripts/app-environment.mjs: main스냅샷 루트도dev로삽입, preview는pre. manifest name/short_name 및 iOS apple-mobile-web-app-title 접미사동기화. scope/start_url상대경로유지. 운영빌드는접미사/배지없음. 운영실배포/새main병합안함.
 - 로컬check/27단위/build:preview성공. 생성결과 _site=dev/바른한자dev, _site/preview=pre/바른한자pre 확인. 브라우저배지위치/분홍색/설치메타데이터검증추가(예정60E2E). smoke는preview와test루트배지/manifest도검증.
+- e687cb5 Actions41189140933 검증/Pages배포12초/smoke6초 성공. preview의pre 및test루트의dev를배포후HTTP검증. 운영환경변수로로컬빌드도별도확인:배지없고원래앱이름유지. 실제운영배포안함.
+- 확인 /preview/?v=e687cb5 및 /?v=e687cb5 . 기존설치앱이름은OS/브라우저갱신시점에따라즉시변경되지않을수있음(필요시재설치).
