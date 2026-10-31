@@ -174,3 +174,9 @@
 - RAF단위 실제mainpath 추적 E2E 추가: 동일node유지, opacity가1미만으로 내려가지 않음, offset재증가(재그리기)없음, 마지막0유지. 단위22개 및 E2E56개 예정. 후속CI기록.
 - 최종코드809406d, Actions41183687939 성공: unit22개/E2E56개(49.3초), Pages10초/배포후smoke8초 통과. RAF 추적에서 실제획node 유지·불투명도 저하0회·dashoffset 역증가0회·완료후0유지 확인. 통합버튼 상태테스트 통과.
 - 최신확인링크 /preview/?v=809406d (구HTML 캐시와 구분), 재생/정지1개가 보이면 이번버전. main 미병합. 사용자의 실제기기 체감은 확인 전이며 결과를 기다릴 것.
+
+## 2026-10-31 사용자 재신고: main 소스 기준 재생 복원
+- 사용자는 붉은색만 사라지고 깜빡임이 남았다고 보고하며 main 소스 참고 요청. 이전단일획/자식path만의 검증으로 실제기기 해결을 단정한 것은 부적절했음.
+- origin/main WritingEngine의 기본 animateCharacter/animateStroke 구현 확인. 직접style/RAF/SVG노드순서 의존/overlay/skipQuizStroke 커밋 전부 제거. main의 공개 animateStroke로 한획씩 연속 재생하며 완료된획은 native state가 유지. 자동재생 획 사이에 quiz를 재시작하지 않음.
+- native API가 quiz를 취소하므로 펜접촉 시 현재완료획부터 quiz를 활성화하고 첫 mouse/touch 시작점부터 move/end 전체를 비동기 준비중 buffer후 재전달. 자동재생 중 바로쓰기를 유지. 손입력·이전획·정지·reset·문자전환의token 처리와 통합버튼 유지.
+- E2E 강화: native animateStroke 호출 확인, hint/skipQuizStroke 호출시실패; 三의 첫완료획 및 모든상위g의 opacity/display/offset을 전체자동재생중 추적; native재생중실제TouchEvent 첫획채점. 기존동일화면쓰기/undo 테스트 유지. 단위22개 통과, E2E58개 예정.

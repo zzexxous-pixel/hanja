@@ -27,10 +27,10 @@ test('handwriting invalidates a pending demonstration, which must not skip a str
 test('rapid next-next and previous during demo cannot produce stale cursor increments',async()=>{
  const s=session();s.engine.stepNextStroke();s.engine.stepNextStroke();
  s.hints.shift()();s.hints.shift()();await new Promise(resolve=>setImmediate(resolve));
- assert.equal(s.skips,1);assert.equal(s.engine.currentStroke,1);
+ assert.equal(s.skips,0);assert.equal(s.engine.currentStroke,1);
  const play=s.engine.playAnimation();s.engine.stepPrevStroke();
  s.hints.shift()();await play;
- assert.equal(s.engine.currentStroke,0);assert.equal(s.skips,1);assert.equal(s.quiz.quizStartStrokeNum,0);
+ assert.equal(s.engine.currentStroke,0);assert.equal(s.skips,0);assert.equal(s.quiz.quizStartStrokeNum,0);
 });
 test('pause and reset invalidate animation completions',async()=>{
  const s=session();let play=s.engine.playAnimation();s.engine.pauseAnimation();

@@ -118,14 +118,10 @@
       this.targetEl.style.height = '100%';
       this.container.appendChild(this.targetEl);
       if (!this._interruptDrawing) {
-        this._interruptDrawing = () => {
-          this._interruptDemo();
-          if (this.isReady && this.writer) this.writer.resumeAnimation();
-        };
+        this._interruptDrawing = event => this._handleDrawingStart(event);
         this.container.addEventListener('mousedown', this._interruptDrawing, true);
-        this.container.addEventListener('touchstart', this._interruptDrawing, {capture: true, passive: true});
+        this.container.addEventListener('touchstart', this._interruptDrawing, {capture: true, passive: false});
       }
-
 
       // 3. 비동기 렌더링 즉시 감지용 1회성 옵저버 시작
       this._startObserver();
@@ -302,6 +298,10 @@
     resize: function (newSize) {
       if (!newSize || Math.abs(this.size - newSize) < 4) return;
       this._interruptDemo();
+      if (this._nativeDemo && this.writer && this.isReady) {
+        this.writer.pauseAnimation();
+        this.startQuiz();
+      }
       this.size = Math.round(newSize);
       
       this.container.style.width = `${this.size}px`;
@@ -380,65 +380,67 @@
 
     _interruptDemo: function () {
       this._playToken++;
-      if (this._clearDemo) this._clearDemo();
       this._setPlaying(false);
     },
 
-    // Animate the actual Hanzi Writer main path. There is no second SVG or handoff.
-    _drawDemoStroke: function (index) {
-      const svg = this.targetEl.querySelector('svg');
-      // Pinned HW 3.7.3 SVG renderer mounts outline, main, highlight in that order.
-      const paths = svg ? svg.querySelectorAll('path[clip-path]') : [];
-      const ink = paths[this.meta.totalStrokes + index];
-      if (!ink) return Promise.resolve(false);
-      const opacity = ink.style.opacity, offset = ink.style.strokeDashoffset;
-      const length = parseFloat(ink.getAttribute('stroke-dasharray'));
-      const duration = Math.max(180, Math.min(1100, length / (this.options.animSpeed || 1) * 1.2));
-      return new Promise(resolve => {
-        let frame, start;
-        const clear = (committed = false) => {
-          global.cancelAnimationFrame(frame);
-          ink.classList.remove('demo-stroke-ink');
-          if (!committed) {
-            ink.style.opacity = opacity;
-            ink.style.strokeDashoffset = offset;
-          }
-          if (this._clearDemo === clear) this._clearDemo = null;
-          resolve(false);
-        };
-        this._clearDemo = clear;
-        ink.classList.add('demo-stroke-ink');
-        ink.style.opacity = '1';
-        const tick = now => {
-          if (start === undefined) start = now;
-          const progress = Math.min(1, (now-start)/duration);
-          ink.style.strokeDashoffset = String(length*(1-progress));
-          if (progress < 1) frame = global.requestAnimationFrame(tick);
-          else resolve(true);
-        };
-        ink.style.strokeDashoffset = String(length);
-        frame = global.requestAnimationFrame(tick);
-      });
+    // Use main's native animateStroke path, not direct SVG edits or per-stroke quiz commits.
+    _drawDemoStroke: async function (index) {
+      // Let a just-reset quiz arm before the native API cancels it.
+      await Promise.resolve();
+      this._nativeDemo = true;
+      return this.writer.animateStroke(index).then(result => !result?.canceled);
     },
 
     _demonstrateStroke: async function (token) {
-      const index = this.currentStroke;
-      const writer = this.writer;
+      const index = this.currentStroke, writer = this.writer;
       if (!await this._drawDemoStroke(index)) return false;
       if (token !== this._playToken || !this.isReady || this.writer !== writer || this.currentStroke !== index) return false;
-      this._advanceByDemo = true;
-      writer.skipQuizStroke();
-      this._advanceByDemo = false;
       this.currentStroke = index + 1;
       this._notifyStrokeChange();
-      // The quiz commits opacity=1 / dashoffset=0 to this very same path.
-      if (this._clearDemo) this._clearDemo(true);
-      return token === this._playToken;
+      if (this.currentStroke === this.meta.totalStrokes && this.options.onComplete) this.options.onComplete({source:'demo'});
+      return true;
+    },
+
+    // Native animation cancels quiz. On first pen contact, arm it at the shared cursor,
+    // buffering all input until the public async quiz API is ready (including the first point).
+    _handleDrawingStart: function (event) {
+      if (this._replayingInput || !this.isReady) return;
+      if (!this._nativeDemo && !this._inputQueue) {
+        this._interruptDemo(); this.writer.resumeAnimation(); return;
+      }
+      const clone = e => e.type.startsWith('touch')
+        ? new TouchEvent(e.type, {bubbles:true,cancelable:true,touches:e.touches,targetTouches:e.targetTouches,changedTouches:e.changedTouches})
+        : new MouseEvent(e.type, {bubbles:true,cancelable:true,clientX:e.clientX,clientY:e.clientY,button:e.button,buttons:e.buttons});
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (this._inputQueue) { this._inputQueue.push(clone(event)); return; }
+      this._interruptDemo(); this.writer.resumeAnimation();
+      const token=this._playToken, queue=this._inputQueue=[clone(event)];
+      const types=['mousemove','mouseup','touchmove','touchend','touchcancel'];
+      const buffer=e=>{
+        if(this._replayingInput)return;
+        e.preventDefault();e.stopImmediatePropagation();queue.push(clone(e));
+      };
+      types.forEach(type=>document.addEventListener(type,buffer,{capture:true,passive:false}));
+      Promise.resolve(this.startQuiz()).then(()=>{
+        if(token!==this._playToken || !this.isReady)return;
+        this._nativeDemo=false;this._replayingInput=true;
+        const svg=this.targetEl.querySelector('svg');
+        for(const e of queue)svg.dispatchEvent(e);
+      }).catch(error=>{
+        if(token===this._playToken)this._loadError(error);
+      }).finally(()=>{
+        this._replayingInput=false;
+        if(this._inputQueue===queue)this._inputQueue=null;
+        types.forEach(type=>document.removeEventListener(type,buffer,true));
+      });
     },
 
     pauseAnimation: function () {
       this._interruptDemo();
-      if (this.writer && this.isReady) this.writer.pauseAnimation();
+      if (this.writer && this.isReady) {
+        this.writer.pauseAnimation();
+        if (this._nativeDemo && this.currentStroke < this.meta.totalStrokes) this.startQuiz();
+      }
     },
 
     stepNextStroke: async function () {
@@ -448,7 +450,10 @@
       const token = this._playToken;
       this._setPlaying(true);
       await this._demonstrateStroke(token);
-      if (token === this._playToken) this._setPlaying(false);
+      if (token === this._playToken) {
+        await this.startQuiz();
+        this._setPlaying(false);
+      }
     },
 
     stepPrevStroke: function () {
@@ -469,7 +474,8 @@
       if (!this.writer || !this.isReady) return;
 
       if (this.currentStroke >= this.meta.totalStrokes) return;
-      this.writer.quiz({
+      this._nativeDemo = false;
+      return this.writer.quiz({
         quizStartStrokeNum: this.currentStroke,
         showHintAfterMisses: 1,
         onCorrectStroke: (data) => {
