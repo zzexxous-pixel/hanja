@@ -193,3 +193,8 @@
 - 배율을main1.2로 복구하고 연속재생 획사이150ms대기를 명시추가. 마지막획/단일다음획에는불필요한대기없음. 대기중정지/직접쓰기/이전획의토큰취소유지. SVG렌더링변경없음.
 - 로컬check/단위24/build:preview성공. 추가검증:150ms일치 및 간격중정지시다음획진행차단. CI/배포대기.
 - 2351b10 Actions41187274562 성공: 단위24/E2E58(48.4초)/Pages/smoke 통과. 확인링크 /preview/?v=2351b10 . main미변경/미병합.
+
+## 2026-10-31 환경 구분 표시
+- 사용자: preview=pre, test=dev, 운영표시없음. 급수선택드롭다운 오른쪽분홍색, 설치앱이름뒤에도동일추가.
+- 빌드시 환경라벨삽입 scripts/app-environment.mjs: main스냅샷 루트도dev로삽입, preview는pre. manifest name/short_name 및 iOS apple-mobile-web-app-title 접미사동기화. scope/start_url상대경로유지. 운영빌드는접미사/배지없음. 운영실배포/새main병합안함.
+- 로컬check/27단위/build:preview성공. 생성결과 _site=dev/바른한자dev, _site/preview=pre/바른한자pre 확인. 브라우저배지위치/분홍색/설치메타데이터검증추가(예정60E2E). smoke는preview와test루트배지/manifest도검증.
