@@ -164,3 +164,4 @@
 - 자동시연/다음획에서는 highlightStroke 사용 제거. 선택데이터의 동일 outline/median으로 클릭을 방해하지 않는 SVG overlay에서 최종 획색(본체/부수)으로1회만 그린다. 완료된 정확한 outline을 유지한 채 quiz에 획을 넘기고2프레임 뒤 overlay제거(지우고 다시 그리는 공백 방지).
 - quiz는 계속 활성. 입력/이전획/새재생/정지/reset/문자전환/resize/닫기는 RAF와overlay를 정리하고토큰무효화. 잘못쓴획의 HW 교정힌트는 별도기능으로 기존대로 유지.
 - 단위20개, check 통과. E2E에 자동시연의 붉은highlight 미사용/최종잉크색/완료시overlay정리/정지중진행도유지 추가(총54개 예정). 브라우저 및 배포 결과 후속.
+- 최종코드ef56312, Actions41182954188 성공: unit20개, desktop/mobile E2E54개(39.2초), Pages35초/HTTP·SHA smoke7초 통과. /preview/ 자동시연 및 다음획에1회그리기 반영. 기존 직접쓰기/이전획 테스트 유지 통과. main 미병합.
