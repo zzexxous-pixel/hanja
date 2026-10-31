@@ -186,3 +186,4 @@
 ## 2026-10-31 자동 획쓰기 감속
 - 사용자 요청: 자동 획쓰기가 빨라 조금 느리게. native strokeAnimationSpeed 배율1.2→0.9(속도25%감소, 획 소요시간 약33%증가). 재생/쓰기 전환 로직 변경 없음.
 - 로컬 check/단위22개/build:preview 성공. push 후 Actions 검증·배포 확인 예정.
+- b9f1b21 Actions41186828733 성공: 단위22/E2E58(42.6초)/Pages배포/smoke 모두통과. 확인링크 /preview/?v=b9f1b21 .
