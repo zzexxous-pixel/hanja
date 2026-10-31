@@ -156,3 +156,5 @@
 - 이전획은 quizStartStrokeNum로 다시 시작, 완료 후에도 이전으로 돌아가 재작성 가능. 비공개/존재하지 않는 showStroke 호출 제거. pause/reset/문자전환/닫기 중 늦은 animation완료가 진행도를 바꾸지 않도록 generation token 사용.
 - 단위20개 통과. E2E는 기본화면에서13획실제채점 유지, 시연1획→직접쓰기→이전획→재작성→재생중직접쓰기 및 지연콜백 방지 추가. 총52개 예정. 브라우저/배포 결과 후속 기록.
 - 세션 복원 이력 다시 main merge였으므로 원격1bc43a0과 비교 후 동일활성branch로 soft 정렬(차이는 현재5개기능파일뿐). 기존코드/자료검수 이력 보존.
+- 최종코드c14dfdc, Actions41177360791 성공: 단위20개, 데스크톱/모바일 E2E52개(43.6초), Pages11초 및 HTTP/SHA smoke7초 모두 통과. 모바일320/360/390px2열,13획직접쓰기, 시연/직접쓰기/이전획의 공유 진행 및 늦은callback방지 확인.
+- https://zzexxous-pixel.github.io/hanja-test/preview/ 배포 완료. main 미병합, 기존55pt/17pt와자형데이터/검수상태유지.
