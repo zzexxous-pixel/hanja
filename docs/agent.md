@@ -221,3 +221,4 @@
 - 사용자 승인: 설치여부와무관하게설치버튼항상표시. 설치가능하면native prompt, standalone은이미앱실행안내, 그외설치되었거나미지원일수있다는불확실성안내. 무한'확인중'문구제거.
 - installApp.js hidden=false, busy일때만disabled/확인중. appinstalled/standalone에도버튼유지,중복prompt없이상태안내. 일반탭에서는정확한설치여부추측하지않음. iOS수동안내유지, native이벤트1회사용/취소/오류처리유지. 설정하단위치와짧은pre/dev앱이름유지.
 - 로컬check/단위33/build:preview성공. E2E기존설치시나리오를항상보임/미지원클릭/취소후재클릭/실제설치이벤트후클릭안내로수정. CI/배포대기.
+- 116aee6 Actions41202023743 성공: 단위33/E2E66(59.4초)/Pages8초/smoke6초. 확인 /preview/?v=116aee6 . main미병합/운영미배포.
