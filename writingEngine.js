@@ -168,7 +168,7 @@
         highlightColor: this.options.highlightColor,
         drawingColor: this.options.drawingColor,
         drawingWidth: penWidth,
-        strokeAnimationSpeed: this.options.animSpeed * 0.9,
+        strokeAnimationSpeed: this.options.animSpeed * 1.2,
         delayBetweenStrokes: 150,
         strokeFadeDuration: 0,
         showOutline: true,
@@ -358,7 +358,7 @@
       return Object.assign({}, this.meta);
     },
 
-    // Draw the real writer path once; quiz commits the same path without replacing it.
+    // Use native strokes with the same inter-stroke timing as main animateCharacter.
     // A generation token prevents old animation callbacks from advancing after touch/back/reset.
     playAnimation: async function () {
       if (!this.writer || !this.isReady) return;
@@ -369,8 +369,16 @@
       this._setPlaying(true);
       while (token === this._playToken && this.currentStroke < this.meta.totalStrokes) {
         if (!await this._demonstrateStroke(token)) break;
+        if (token === this._playToken && this.currentStroke < this.meta.totalStrokes) {
+          await this._waitBetweenStrokes();
+        }
       }
       if (token === this._playToken) this._setPlaying(false);
+    },
+
+    // animateStroke does not apply delayBetweenStrokes; main animateCharacter does.
+    _waitBetweenStrokes: function () {
+      return new Promise(resolve => global.setTimeout(resolve, 150));
     },
 
     _setPlaying: function (playing) {

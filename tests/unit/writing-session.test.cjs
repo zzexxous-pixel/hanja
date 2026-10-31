@@ -5,7 +5,7 @@ function session(){
  const context={window:{requestAnimationFrame:callback=>setImmediate(callback)}};vm.runInNewContext(fs.readFileSync('writingEngine.js','utf8'),context);
  const engine=Object.create(context.window.WritingEngine.prototype),hints=[];
  let quizOptions,skips=0;
- Object.assign(engine,{isReady:true,_playToken:0,currentStroke:0,meta:{totalStrokes:3},options:{},_drawDemoStroke(){return new Promise(resolve=>hints.push(()=>resolve(true)));},writer:{
+ Object.assign(engine,{isReady:true,_playToken:0,currentStroke:0,meta:{totalStrokes:3},options:{},_waitBetweenStrokes(){return Promise.resolve();},_drawDemoStroke(){return new Promise(resolve=>hints.push(()=>resolve(true)));},writer:{
   resumeAnimation(){},pauseAnimation(){},cancelQuiz(){},hideCharacter(){},showOutline(){},
   quiz(options){quizOptions=options;},
   highlightStroke(){throw Error("Red hint animation must not be used for demonstration");},
@@ -47,4 +47,22 @@ test('a single playback state resets on pause and handwriting interruption',asyn
  s.engine.startQuiz();const next=s.engine.stepNextStroke();assert.equal(s.engine.isPlaying,true);
  s.quiz.onCorrectStroke({strokeNum:0});assert.equal(s.engine.isPlaying,false);
  s.hints.shift()();await next;
+});
+
+test('continuous playback waits between strokes and stop during the gap prevents the next stroke',async()=>{
+ const s=session();let releaseGap;
+ s.engine._waitBetweenStrokes=()=>new Promise(resolve=>{releaseGap=resolve;});
+ const play=s.engine.playAnimation();s.hints.shift()();
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(s.engine.currentStroke,1);assert.equal(s.hints.length,0);
+ assert.equal(typeof releaseGap,'function');
+ s.engine.pauseAnimation();releaseGap();await play;
+ assert.equal(s.hints.length,0);assert.equal(s.engine.currentStroke,1);
+});
+test('native playback gap matches main 150ms delay',async()=>{
+ let delay;
+ const context={window:{setTimeout(callback,ms){delay=ms;callback();}}};
+ vm.runInNewContext(fs.readFileSync('writingEngine.js','utf8'),context);
+ await context.window.WritingEngine.prototype._waitBetweenStrokes();
+ assert.equal(delay,150);
 });
