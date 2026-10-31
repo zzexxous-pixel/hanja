@@ -493,6 +493,13 @@ function initModalWritingEngine(char) {
             char: char,
             width: initialSize,
             height: initialSize,
+            onPlaybackChange: (playing) => {
+                const button = document.getElementById('btn-toggle-writing');
+                if (button) {
+                    button.innerHTML = playing ? '<i class="fa-solid fa-pause"></i> 정지' : '<i class="fa-solid fa-play"></i> 재생';
+                    button.setAttribute('aria-pressed', String(playing));
+                }
+            },
             onCharLoaded: (meta) => {
                 updateModalSpecUI(meta);
             },
@@ -562,6 +569,12 @@ function updateModalSpecUI(meta) {
         statusEl.className = 'text-blue-600 font-bold';
         statusEl.innerText = '획순 시연 준비 완료 · 바로 써보세요.';
     }
+}
+
+function toggleModalWriting() {
+    if (!modalWriter || !modalWriter.isReady) return;
+    if (modalWriter.isPlaying) pauseModalWriting();
+    else playModalWriting();
 }
 
 function playModalWriting() {
@@ -1074,11 +1087,8 @@ window.onload = function() {
             case 'next-modal-hanja':
                 nextModalHanja();
                 break;
-            case 'play-modal-writing':
-                playModalWriting();
-                break;
-            case 'pause-modal-writing':
-                pauseModalWriting();
+            case 'toggle-modal-writing':
+                toggleModalWriting();
                 break;
             case 'step-prev-modal-stroke':
                 stepPrevModalStroke();

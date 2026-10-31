@@ -53,6 +53,21 @@ self.addEventListener('fetch', (event) => {
     // 추가: http 또는 https 요청이 아니면 가로채지 않음
     if (!event.request.url.startsWith('http')) return;
     
+    if (event.request.mode === 'navigate') {
+        event.respondWith(fetch(event.request).then(response => {
+            if (!response.ok) throw new Error('Navigation failed');
+            const copy = response.clone();
+            event.waitUntil(caches.open(CACHE_VERSION).then(cache => cache.put(event.request, copy)).catch(() => {}));
+            return response;
+        }).catch(async () => {
+            try {
+                const cache = await caches.open(CACHE_VERSION);
+                return await cache.match(event.request) || await cache.match('./index.html') || new Response('Offline', {status:503});
+            } catch (_) { return new Response('Offline', {status:503}); }
+        }));
+        return;
+    }
+
     // Cache First, Network Fallback with Dynamic Caching
     event.respondWith(
         caches.open(CACHE_VERSION).then(cache => ['no-store', 'reload'].includes(event.request.cache) ? undefined : cache.match(event.request)).catch(() => undefined).then((cachedResponse) => {

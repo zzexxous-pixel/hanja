@@ -154,12 +154,9 @@
 
             <div class="writing-control-panel shrink-0">
                 <div id="panel-writing-controls" class="space-y-1.5">
-                    <div class="grid grid-cols-4 gap-1.5">
-                        <button data-action="play-modal-writing" class="btn-writing-action btn-accent-red">
+                    <div class="grid grid-cols-3 gap-1.5">
+                        <button id="btn-toggle-writing" data-action="toggle-modal-writing" aria-pressed="false" class="btn-writing-action btn-accent-red">
                             <i class="fa-solid fa-play"></i> 재생
-                        </button>
-                        <button data-action="pause-modal-writing" class="btn-writing-action btn-neutral">
-                            <i class="fa-solid fa-pause"></i> 정지
                         </button>
                         <button data-action="step-prev-modal-stroke" class="btn-writing-action btn-neutral">
                             <i class="fa-solid fa-backward-step"></i> 이전획

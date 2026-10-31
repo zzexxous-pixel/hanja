@@ -38,3 +38,13 @@ test('pause and reset invalidate animation completions',async()=>{
  play=s.engine.playAnimation();s.engine.reset();s.hints.shift()();await play;
  assert.equal(s.engine.currentStroke,0);assert.equal(s.skips,0);
 });
+
+test('a single playback state resets on pause and handwriting interruption',async()=>{
+ const s=session(),states=[];s.engine.options.onPlaybackChange=p=>states.push(p);
+ const play=s.engine.playAnimation();assert.equal(s.engine.isPlaying,true);
+ s.engine.pauseAnimation();assert.equal(s.engine.isPlaying,false);
+ s.hints.shift()();await play;assert.equal(states.at(-1),false);
+ s.engine.startQuiz();const next=s.engine.stepNextStroke();assert.equal(s.engine.isPlaying,true);
+ s.quiz.onCorrectStroke({strokeNum:0});assert.equal(s.engine.isPlaying,false);
+ s.hints.shift()();await next;
+});

@@ -174,7 +174,7 @@ test('one writing surface allows demo, handwriting, undo, and replay without mod
  await expect(page.locator('#modal-stroke-badge')).toHaveText('획순: 2 / 13');
  await page.locator('[data-action="reset-modal-writing"]').click();
  await expect(page.locator('#modal-stroke-badge')).toHaveText('획순: 0 / 13');
- await page.locator('[data-action="play-modal-writing"]').click();
+ await page.locator('[data-action="toggle-modal-writing"]').click();
  await drawStroke(page,'敬',0);
  await expect(page.locator('#modal-stroke-badge')).toHaveText('획순: 1 / 13');
  // A delayed demo callback must not advance the shared cursor after handwriting takes control.
@@ -191,17 +191,51 @@ test('automatic stroke draws once in final ink, without the red fade-out hint pa
   const original=HanziWriter.prototype.highlightStroke;
   HanziWriter.prototype.highlightStroke=function(...args){window.demoHintCalls++;return original.apply(this,args);};
  });
- await page.locator('[data-action="play-modal-writing"]').click();
- const ink=page.locator('.demo-stroke-overlay path[stroke-dashoffset]');
+ await page.locator('[data-action="toggle-modal-writing"]').click();
+ const ink=page.locator('.demo-stroke-ink');
  await expect(ink).toHaveCount(1);
- expect(['#1e293b','#2563eb']).toContain(await ink.getAttribute('stroke'));
+ expect(await ink.getAttribute('stroke')).toMatch(/^rgba\((30,41,59|37,99,235),1\)$/);
  await expect(page.locator('#modal-stroke-badge')).toHaveText('획순: 1 / 1');
- await expect(page.locator('.demo-stroke-overlay')).toHaveCount(0);
+ await expect(page.locator('.demo-stroke-ink')).toHaveCount(0);
  expect(await page.evaluate(()=>demoHintCalls)).toBe(0);
  await page.locator('[data-action="step-prev-modal-stroke"]').click();
  await page.locator('[data-action="step-next-modal-stroke"]').click();
  await expect(ink).toHaveCount(1);
- await page.locator('[data-action="pause-modal-writing"]').click();
- await expect(page.locator('.demo-stroke-overlay')).toHaveCount(0);
+ await page.locator('[data-action="toggle-modal-writing"]').click();
+ await expect(page.locator('.demo-stroke-ink')).toHaveCount(0);
  await expect(page.locator('#modal-stroke-badge')).toHaveText('획순: 0 / 1');
+});
+
+test('the same rendered stroke stays opaque and never restarts during auto playback',async({page})=>{
+ await openCharacter(page,'一');
+ await expect(page.locator('#chip-total-strokes')).toHaveText('총 1획');
+ await page.evaluate(()=>{
+  const svg=document.querySelector('#writingContainer > div > svg');
+  const node=svg.querySelectorAll('path[clip-path]')[1];
+  window.strokeProbe={node,frames:0,increases:0,transparent:0,last:Infinity,started:false,running:true};
+  const tick=()=>{
+   const p=window.strokeProbe;
+   if(node.classList.contains('demo-stroke-ink'))p.started=true;
+   if(p.started){
+    const offset=parseFloat(node.style.strokeDashoffset);
+    if(offset>p.last+0.01)p.increases++;
+    if(Number(getComputedStyle(node).opacity)<0.999)p.transparent++;
+    p.last=offset;p.frames++;
+   }
+   if(p.running)requestAnimationFrame(tick);
+  };requestAnimationFrame(tick);
+ });
+ const button=page.locator('#btn-toggle-writing');
+ await expect(button).toHaveText('재생');
+ await button.click();await expect(button).toHaveText('정지');
+ await expect(page.locator('#modal-stroke-badge')).toHaveText('획순: 1 / 1');
+ await expect(button).toHaveText('재생');
+ await page.waitForTimeout(300);
+ const probe=await page.evaluate(()=>{
+  const p=strokeProbe;p.running=false;
+  return {frames:p.frames,increases:p.increases,transparent:p.transparent,connected:p.node.isConnected,offset:p.last};
+ });
+ expect(probe.frames).toBeGreaterThan(5);expect(probe.increases).toBe(0);
+ expect(probe.transparent).toBe(0);expect(probe.connected).toBe(true);expect(probe.offset).toBe(0);
+ await expect(page.locator('[data-action="pause-modal-writing"], [data-action="play-modal-writing"]')).toHaveCount(0);
 });

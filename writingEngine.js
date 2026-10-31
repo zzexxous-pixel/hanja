@@ -358,67 +358,65 @@
       return Object.assign({}, this.meta);
     },
 
-    // Draw once in the final ink color; keep it visible until the quiz owns the finished stroke.
+    // Draw the real writer path once; quiz commits the same path without replacing it.
     // A generation token prevents old animation callbacks from advancing after touch/back/reset.
     playAnimation: async function () {
       if (!this.writer || !this.isReady) return;
+      if (this.currentStroke === this.meta.totalStrokes) this.reset();
       this.writer.resumeAnimation();
       this._interruptDemo();
       const token = this._playToken;
+      this._setPlaying(true);
       while (token === this._playToken && this.currentStroke < this.meta.totalStrokes) {
         if (!await this._demonstrateStroke(token)) break;
       }
+      if (token === this._playToken) this._setPlaying(false);
+    },
+
+    _setPlaying: function (playing) {
+      this.isPlaying = playing;
+      if (this.options.onPlaybackChange) this.options.onPlaybackChange(playing);
     },
 
     _interruptDemo: function () {
       this._playToken++;
       if (this._clearDemo) this._clearDemo();
+      this._setPlaying(false);
     },
 
+    // Animate the actual Hanzi Writer main path. There is no second SVG or handoff.
     _drawDemoStroke: function (index) {
-      const data = this._charData;
-      const points = data.medians[index];
-      const outline = data.strokes[index];
-      const transform = global.HanziWriter.getScalingTransform(this.size, this.size, Math.max(10, Math.round(this.size * 0.05)));
-      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      svg.classList.add('demo-stroke-overlay');
-      svg.setAttribute('width', this.size);
-      svg.setAttribute('height', this.size);
-      svg.setAttribute('aria-hidden', 'true');
-      svg.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;overflow:visible';
-      // Anchor to the same origin/size as the real writer, not the bordered outer container.
-      this.targetEl.style.position = 'relative';
-      const id = `demo-clip-${this._demoSerial = (this._demoSerial || 0) + 1}`;
-      const color = this.meta.radStrokes.includes(index) ? this.options.radicalColor : this.options.strokeColor;
-      const median = points.map((p,i) => `${i ? 'L' : 'M'} ${p[0]} ${p[1]}`).join(' ');
-      const length = points.slice(1).reduce((sum,p,i) => sum + Math.hypot(p[0]-points[i][0],p[1]-points[i][1]),0);
-      svg.innerHTML = `<g transform="translate(${transform.x} ${this.size-transform.y}) scale(${transform.scale} ${-transform.scale})"><defs><clipPath id="${id}"><path d="${outline}"/></clipPath></defs><path clip-path="url(#${id})" d="${median}" fill="none" stroke="${color}" stroke-width="250" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="${length} ${length}" stroke-dashoffset="${length}"/></g>`;
-      const ink = svg.querySelector('g > path');
-      this.targetEl.appendChild(svg);
+      const svg = this.targetEl.querySelector('svg');
+      // Pinned HW 3.7.3 SVG renderer mounts outline, main, highlight in that order.
+      const paths = svg ? svg.querySelectorAll('path[clip-path]') : [];
+      const ink = paths[this.meta.totalStrokes + index];
+      if (!ink) return Promise.resolve(false);
+      const opacity = ink.style.opacity, offset = ink.style.strokeDashoffset;
+      const length = parseFloat(ink.getAttribute('stroke-dasharray'));
+      const duration = Math.max(180, Math.min(1100, length / (this.options.animSpeed || 1) * 1.2));
       return new Promise(resolve => {
         let frame, start;
-        const clear = () => {
+        const clear = (committed = false) => {
           global.cancelAnimationFrame(frame);
-          svg.remove();
+          ink.classList.remove('demo-stroke-ink');
+          if (!committed) {
+            ink.style.opacity = opacity;
+            ink.style.strokeDashoffset = offset;
+          }
           if (this._clearDemo === clear) this._clearDemo = null;
           resolve(false);
         };
         this._clearDemo = clear;
-        const duration = Math.max(180, Math.min(1100, length / (this.options.animSpeed || 1) * 1.2));
+        ink.classList.add('demo-stroke-ink');
+        ink.style.opacity = '1';
         const tick = now => {
           if (start === undefined) start = now;
           const progress = Math.min(1, (now-start)/duration);
-          ink.setAttribute('stroke-dashoffset', length*(1-progress));
+          ink.style.strokeDashoffset = String(length*(1-progress));
           if (progress < 1) frame = global.requestAnimationFrame(tick);
-          else {
-            // Leave the exact, fully filled path in place with no fade or second drawing pass.
-            ink.remove();
-            const full = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            full.setAttribute('d', outline); full.setAttribute('fill', color);
-            svg.querySelector('g').appendChild(full);
-            resolve(true);
-          }
+          else resolve(true);
         };
+        ink.style.strokeDashoffset = String(length);
         frame = global.requestAnimationFrame(tick);
       });
     },
@@ -433,10 +431,8 @@
       this._advanceByDemo = false;
       this.currentStroke = index + 1;
       this._notifyStrokeChange();
-      const clear = this._clearDemo;
-      // skipQuizStroke paints the same exact outline underneath; only then remove the overlay.
-      await new Promise(resolve => global.requestAnimationFrame(() => global.requestAnimationFrame(resolve)));
-      if (clear) clear();
+      // The quiz commits opacity=1 / dashoffset=0 to this very same path.
+      if (this._clearDemo) this._clearDemo(true);
       return token === this._playToken;
     },
 
@@ -445,11 +441,14 @@
       if (this.writer && this.isReady) this.writer.pauseAnimation();
     },
 
-    stepNextStroke: function () {
+    stepNextStroke: async function () {
       if (!this.writer || !this.isReady || this.currentStroke >= this.meta.totalStrokes) return;
       this.writer.resumeAnimation();
       this._interruptDemo();
-      this._demonstrateStroke(this._playToken);
+      const token = this._playToken;
+      this._setPlaying(true);
+      await this._demonstrateStroke(token);
+      if (token === this._playToken) this._setPlaying(false);
     },
 
     stepPrevStroke: function () {

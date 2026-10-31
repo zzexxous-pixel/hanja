@@ -165,3 +165,10 @@
 - quiz는 계속 활성. 입력/이전획/새재생/정지/reset/문자전환/resize/닫기는 RAF와overlay를 정리하고토큰무효화. 잘못쓴획의 HW 교정힌트는 별도기능으로 기존대로 유지.
 - 단위20개, check 통과. E2E에 자동시연의 붉은highlight 미사용/최종잉크색/완료시overlay정리/정지중진행도유지 추가(총54개 예정). 브라우저 및 배포 결과 후속.
 - 최종코드ef56312, Actions41182954188 성공: unit20개, desktop/mobile E2E54개(39.2초), Pages35초/HTTP·SHA smoke7초 통과. /preview/ 자동시연 및 다음획에1회그리기 반영. 기존 직접쓰기/이전획 테스트 유지 통과. main 미병합.
+
+## 2026-10-31 깜빡임 재신고 및 재생·정지 통합
+- 사용자가 이전수정으로 해결되지 않았다고 재신고. 기존 overlay를2프레임후 지우는 방식은 실제획과의 geometry/paint handoff를 제거하지 못했으며 이전검증은 highlight미사용/색상만 확인했음. 사용자기기 실제 프레임 로그는 없어 재신고의 단일 원인을 단정하지 않는다.
+- 별도SVG/median 재구성/전체outline 교체 모두 제거. 고정 HW3.7.3 SVG renderer의 outline/main/highlight 순서를 명시해 실제 main path의 strokeDashoffset만 직접 애니메이션. quiz가 동일 노드의 완료속성(opacity1,offset0)을 commit. 중간에 노드 제거/교체/두번째그리기 없음. HW버전/renderer DOM 변경시 이 어댑터 및 테스트 확인 필수.
+- 재생/정지 버튼1개(toggle-modal-writing), aria-pressed/문구 상태연동. 다음획 시연중도 정지가능, 손쓰기/undo/reset/완료/닫기 상태버튼도 복귀. 완료후 재생은처음부터 다시.
+- HTML navigation은network-first로 변경해 새로고침에도 구HTML/구animation코드가 남는 캐시 경로 완화. 오프라인cached HTML 유지.
+- RAF단위 실제mainpath 추적 E2E 추가: 동일node유지, opacity가1미만으로 내려가지 않음, offset재증가(재그리기)없음, 마지막0유지. 단위22개 및 E2E56개 예정. 후속CI기록.
