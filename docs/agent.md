@@ -172,3 +172,5 @@
 - 재생/정지 버튼1개(toggle-modal-writing), aria-pressed/문구 상태연동. 다음획 시연중도 정지가능, 손쓰기/undo/reset/완료/닫기 상태버튼도 복귀. 완료후 재생은처음부터 다시.
 - HTML navigation은network-first로 변경해 새로고침에도 구HTML/구animation코드가 남는 캐시 경로 완화. 오프라인cached HTML 유지.
 - RAF단위 실제mainpath 추적 E2E 추가: 동일node유지, opacity가1미만으로 내려가지 않음, offset재증가(재그리기)없음, 마지막0유지. 단위22개 및 E2E56개 예정. 후속CI기록.
+- 최종코드809406d, Actions41183687939 성공: unit22개/E2E56개(49.3초), Pages10초/배포후smoke8초 통과. RAF 추적에서 실제획node 유지·불투명도 저하0회·dashoffset 역증가0회·완료후0유지 확인. 통합버튼 상태테스트 통과.
+- 최신확인링크 /preview/?v=809406d (구HTML 캐시와 구분), 재생/정지1개가 보이면 이번버전. main 미병합. 사용자의 실제기기 체감은 확인 전이며 결과를 기다릴 것.
