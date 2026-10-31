@@ -183,3 +183,25 @@ test('one writing surface allows demo, handwriting, undo, and replay without mod
  await page.locator('[data-action="step-prev-modal-stroke"]').click();
  await expect(page.locator('#modal-stroke-badge')).toHaveText('획순: 0 / 13');
 });
+test('automatic stroke draws once in final ink, without the red fade-out hint pass',async({page})=>{
+ await openCharacter(page,'一');
+ await expect(page.locator('#chip-total-strokes')).toHaveText('총 1획');
+ await page.evaluate(()=>{
+  window.demoHintCalls=0;
+  const original=HanziWriter.prototype.highlightStroke;
+  HanziWriter.prototype.highlightStroke=function(...args){window.demoHintCalls++;return original.apply(this,args);};
+ });
+ await page.locator('[data-action="play-modal-writing"]').click();
+ const ink=page.locator('.demo-stroke-overlay path[stroke-dashoffset]');
+ await expect(ink).toHaveCount(1);
+ expect(['#1e293b','#2563eb']).toContain(await ink.getAttribute('stroke'));
+ await expect(page.locator('#modal-stroke-badge')).toHaveText('획순: 1 / 1');
+ await expect(page.locator('.demo-stroke-overlay')).toHaveCount(0);
+ expect(await page.evaluate(()=>demoHintCalls)).toBe(0);
+ await page.locator('[data-action="step-prev-modal-stroke"]').click();
+ await page.locator('[data-action="step-next-modal-stroke"]').click();
+ await expect(ink).toHaveCount(1);
+ await page.locator('[data-action="pause-modal-writing"]').click();
+ await expect(page.locator('.demo-stroke-overlay')).toHaveCount(0);
+ await expect(page.locator('#modal-stroke-badge')).toHaveText('획순: 0 / 1');
+});

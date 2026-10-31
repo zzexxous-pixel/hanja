@@ -2,13 +2,13 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm');
 function session(){
- const context={window:{}};vm.runInNewContext(fs.readFileSync('writingEngine.js','utf8'),context);
+ const context={window:{requestAnimationFrame:callback=>setImmediate(callback)}};vm.runInNewContext(fs.readFileSync('writingEngine.js','utf8'),context);
  const engine=Object.create(context.window.WritingEngine.prototype),hints=[];
  let quizOptions,skips=0;
- Object.assign(engine,{isReady:true,_playToken:0,currentStroke:0,meta:{totalStrokes:3},options:{},writer:{
+ Object.assign(engine,{isReady:true,_playToken:0,currentStroke:0,meta:{totalStrokes:3},options:{},_drawDemoStroke(){return new Promise(resolve=>hints.push(()=>resolve(true)));},writer:{
   resumeAnimation(){},pauseAnimation(){},cancelQuiz(){},hideCharacter(){},showOutline(){},
   quiz(options){quizOptions=options;},
-  highlightStroke(){return new Promise(resolve=>hints.push(resolve));},
+  highlightStroke(){throw Error("Red hint animation must not be used for demonstration");},
   skipQuizStroke(){skips++;}
  }});
  return {engine,hints,get quiz(){return quizOptions;},get skips(){return skips;}};

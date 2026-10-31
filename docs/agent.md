@@ -158,3 +158,9 @@
 - 세션 복원 이력 다시 main merge였으므로 원격1bc43a0과 비교 후 동일활성branch로 soft 정렬(차이는 현재5개기능파일뿐). 기존코드/자료검수 이력 보존.
 - 최종코드c14dfdc, Actions41177360791 성공: 단위20개, 데스크톱/모바일 E2E52개(43.6초), Pages11초 및 HTTP/SHA smoke7초 모두 통과. 모바일320/360/390px2열,13획직접쓰기, 시연/직접쓰기/이전획의 공유 진행 및 늦은callback방지 확인.
 - https://zzexxous-pixel.github.io/hanja-test/preview/ 배포 완료. main 미병합, 기존55pt/17pt와자형데이터/검수상태유지.
+
+## 2026-10-31 자동획 시연 깜빡임 수정
+- 사용자: 빨간색으로 한 번 그린 뒤 깜빡이며 다시 쓰는 증상. 원인은 HW highlightStroke가 힌트획을 그린 후 fade-out하고 이후 skipQuizStroke가 본획을 표시하는 이중 표현.
+- 자동시연/다음획에서는 highlightStroke 사용 제거. 선택데이터의 동일 outline/median으로 클릭을 방해하지 않는 SVG overlay에서 최종 획색(본체/부수)으로1회만 그린다. 완료된 정확한 outline을 유지한 채 quiz에 획을 넘기고2프레임 뒤 overlay제거(지우고 다시 그리는 공백 방지).
+- quiz는 계속 활성. 입력/이전획/새재생/정지/reset/문자전환/resize/닫기는 RAF와overlay를 정리하고토큰무효화. 잘못쓴획의 HW 교정힌트는 별도기능으로 기존대로 유지.
+- 단위20개, check 통과. E2E에 자동시연의 붉은highlight 미사용/최종잉크색/완료시overlay정리/정지중진행도유지 추가(총54개 예정). 브라우저 및 배포 결과 후속.

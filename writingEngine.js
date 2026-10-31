@@ -119,7 +119,7 @@
       this.container.appendChild(this.targetEl);
       if (!this._interruptDrawing) {
         this._interruptDrawing = () => {
-          this._playToken++;
+          this._interruptDemo();
           if (this.isReady && this.writer) this.writer.resumeAnimation();
         };
         this.container.addEventListener('mousedown', this._interruptDrawing, true);
@@ -144,7 +144,7 @@
     },
 
     _loadError: function (error) {
-      this._playToken++;
+      this._interruptDemo();
       this.isReady = false;
       this.hasLoadError = true;
       this.meta.totalStrokes = 0;
@@ -197,6 +197,7 @@
     },
 
     _parseCharMeta: function (data) {
+      this._charData = data;
       const totalStrokes = data.strokes.length;
       const radStrokes = Array.isArray(data.radStrokes) ? data.radStrokes : [];
       const radCount = radStrokes.length;
@@ -290,7 +291,7 @@
       this.writer.cancelQuiz();
       this.writer.hideCharacter();
 
-      this._playToken++;
+      this._interruptDemo();
       this.currentStroke = 0;
       this.writer.showOutline();
       this.startQuiz();
@@ -300,6 +301,7 @@
 
     resize: function (newSize) {
       if (!newSize || Math.abs(this.size - newSize) < 4) return;
+      this._interruptDemo();
       this.size = Math.round(newSize);
       
       this.container.style.width = `${this.size}px`;
@@ -323,7 +325,7 @@
     // ★ 새 한자 로드 시 메타 리셋 및 1회성 Observer 재가동
     setCharacter: function (char) {
       if (!char) return;
-      this._playToken++;
+      this._interruptDemo();
       this.char = char;
       if (this.writer) {
         if (this.hasLoadError) { this._initWriter(); return; }
@@ -356,44 +358,103 @@
       return Object.assign({}, this.meta);
     },
 
-    // Quiz remains active while a public highlightStroke animation demonstrates the next stroke.
+    // Draw once in the final ink color; keep it visible until the quiz owns the finished stroke.
     // A generation token prevents old animation callbacks from advancing after touch/back/reset.
     playAnimation: async function () {
       if (!this.writer || !this.isReady) return;
       this.writer.resumeAnimation();
-      const token = ++this._playToken;
+      this._interruptDemo();
+      const token = this._playToken;
       while (token === this._playToken && this.currentStroke < this.meta.totalStrokes) {
         if (!await this._demonstrateStroke(token)) break;
       }
     },
 
+    _interruptDemo: function () {
+      this._playToken++;
+      if (this._clearDemo) this._clearDemo();
+    },
+
+    _drawDemoStroke: function (index) {
+      const data = this._charData;
+      const points = data.medians[index];
+      const outline = data.strokes[index];
+      const transform = global.HanziWriter.getScalingTransform(this.size, this.size, Math.max(10, Math.round(this.size * 0.05)));
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.classList.add('demo-stroke-overlay');
+      svg.setAttribute('width', this.size);
+      svg.setAttribute('height', this.size);
+      svg.setAttribute('aria-hidden', 'true');
+      svg.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;overflow:visible';
+      // Anchor to the same origin/size as the real writer, not the bordered outer container.
+      this.targetEl.style.position = 'relative';
+      const id = `demo-clip-${this._demoSerial = (this._demoSerial || 0) + 1}`;
+      const color = this.meta.radStrokes.includes(index) ? this.options.radicalColor : this.options.strokeColor;
+      const median = points.map((p,i) => `${i ? 'L' : 'M'} ${p[0]} ${p[1]}`).join(' ');
+      const length = points.slice(1).reduce((sum,p,i) => sum + Math.hypot(p[0]-points[i][0],p[1]-points[i][1]),0);
+      svg.innerHTML = `<g transform="translate(${transform.x} ${this.size-transform.y}) scale(${transform.scale} ${-transform.scale})"><defs><clipPath id="${id}"><path d="${outline}"/></clipPath></defs><path clip-path="url(#${id})" d="${median}" fill="none" stroke="${color}" stroke-width="250" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="${length} ${length}" stroke-dashoffset="${length}"/></g>`;
+      const ink = svg.querySelector('g > path');
+      this.targetEl.appendChild(svg);
+      return new Promise(resolve => {
+        let frame, start;
+        const clear = () => {
+          global.cancelAnimationFrame(frame);
+          svg.remove();
+          if (this._clearDemo === clear) this._clearDemo = null;
+          resolve(false);
+        };
+        this._clearDemo = clear;
+        const duration = Math.max(180, Math.min(1100, length / (this.options.animSpeed || 1) * 1.2));
+        const tick = now => {
+          if (start === undefined) start = now;
+          const progress = Math.min(1, (now-start)/duration);
+          ink.setAttribute('stroke-dashoffset', length*(1-progress));
+          if (progress < 1) frame = global.requestAnimationFrame(tick);
+          else {
+            // Leave the exact, fully filled path in place with no fade or second drawing pass.
+            ink.remove();
+            const full = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            full.setAttribute('d', outline); full.setAttribute('fill', color);
+            svg.querySelector('g').appendChild(full);
+            resolve(true);
+          }
+        };
+        frame = global.requestAnimationFrame(tick);
+      });
+    },
+
     _demonstrateStroke: async function (token) {
       const index = this.currentStroke;
       const writer = this.writer;
-      await writer.highlightStroke(index);
+      if (!await this._drawDemoStroke(index)) return false;
       if (token !== this._playToken || !this.isReady || this.writer !== writer || this.currentStroke !== index) return false;
       this._advanceByDemo = true;
       writer.skipQuizStroke();
       this._advanceByDemo = false;
       this.currentStroke = index + 1;
       this._notifyStrokeChange();
-      return true;
+      const clear = this._clearDemo;
+      // skipQuizStroke paints the same exact outline underneath; only then remove the overlay.
+      await new Promise(resolve => global.requestAnimationFrame(() => global.requestAnimationFrame(resolve)));
+      if (clear) clear();
+      return token === this._playToken;
     },
 
     pauseAnimation: function () {
-      this._playToken++;
+      this._interruptDemo();
       if (this.writer && this.isReady) this.writer.pauseAnimation();
     },
 
     stepNextStroke: function () {
       if (!this.writer || !this.isReady || this.currentStroke >= this.meta.totalStrokes) return;
       this.writer.resumeAnimation();
-      this._demonstrateStroke(++this._playToken);
+      this._interruptDemo();
+      this._demonstrateStroke(this._playToken);
     },
 
     stepPrevStroke: function () {
       if (!this.writer || !this.isReady) return;
-      this._playToken++;
+      this._interruptDemo();
       this.writer.resumeAnimation();
       this.currentStroke = Math.max(0, this.currentStroke - 1);
       this.startQuiz();
@@ -413,7 +474,7 @@
         quizStartStrokeNum: this.currentStroke,
         showHintAfterMisses: 1,
         onCorrectStroke: (data) => {
-          this._playToken++;
+          this._interruptDemo();
           this.currentStroke = data.strokeNum + 1;
           this._notifyStrokeChange();
           if (typeof this.options.onStrokeSuccess === 'function') {
