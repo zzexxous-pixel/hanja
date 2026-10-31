@@ -8,9 +8,9 @@ function setup({standalone=false,ios=false}={}){
  return {listeners,button,status};
 }
 test('install uses a deferred prompt once and cancellation allows browser menu guidance',async()=>{
- const s=setup();let prompts=0,prevented=false;
+ const s=setup();assert.equal(s.button.hidden,true);let prompts=0,prevented=false;
  s.listeners.beforeinstallprompt({preventDefault(){prevented=true;},async prompt(){prompts++;},userChoice:Promise.resolve({outcome:'dismissed'})});
- assert.equal(prevented,true);await s.button.click();assert.equal(prompts,1);
+ assert.equal(prevented,true);assert.equal(s.button.hidden,false);await s.button.click();assert.equal(prompts,1);
  assert.match(s.status.textContent,/취소/);await s.button.click();assert.equal(prompts,1);assert.match(s.status.textContent,/브라우저 메뉴/);
 });
 test('iOS without browser install event offers Safari home screen instructions',async()=>{

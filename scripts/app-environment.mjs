@@ -12,6 +12,6 @@ export function stampEnvironment(html, manifest, environment) {
   html = html.replace(/(<meta\s+name="apple-mobile-web-app-title"\s+content=")([^"]*)(")/, (_, before, name, after) => `${before}${name}${suffix}${after}`);
   return {
     html,
-    manifest: {...manifest, name: manifest.name + suffix, short_name: manifest.short_name + suffix}
+    manifest: {...manifest, name: '바른한자' + suffix, short_name: '바른한자' + suffix}
   };
 }

@@ -6,7 +6,7 @@ test('environment label is pink and right of grade selector, with matching insta
  const manifest=await (await request.get('manifest.webmanifest')).json();
  const suffix=environment ? ` ${environment}` : '';
  expect(manifest.short_name).toBe(`바른한자${suffix}`);
- expect(manifest.name).toBe(`바른한자 : 급수별 쓰기 마스터${suffix}`);
+ expect(manifest.name).toBe(`바른한자${suffix}`);
  await expect(page.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute('content',`바른한자${suffix}`);
  if(environment){
   const badge=page.locator('#app-environment');

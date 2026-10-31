@@ -69,10 +69,6 @@
             </div>
             <div class="space-y-6 flex-grow">
                 <div>
-                    <button id="btn-install-app" data-action="install-app" class="w-full rounded-xl bg-blue-600 text-white font-bold py-3 px-4 disabled:opacity-60" aria-describedby="app-install-status">앱 설치</button>
-                    <p id="app-install-status" class="text-xs text-slate-500 mt-2 leading-relaxed" role="status" aria-live="polite">앱을 설치하면 홈 화면에서 바로 실행할 수 있습니다.</p>
-                </div>
-                <div>
                     <div class="flex justify-between items-center mb-2">
                         <label class="text-sm font-black text-slate-700 select-none">발음 인식 정답 기준 (감도)</label>
                         <span id="threshold-value-display" class="text-sm font-extrabold text-blue-600">60%</span>
@@ -87,6 +83,10 @@
                     <p class="text-slate-400 text-xs mt-4 leading-relaxed select-none">
                         💡 <strong>어린 아이들의 서툰 발음</strong>으로 정답 처리가 잘 안 될 때는 기준을 <strong>30% ~ 50% (느슨하게)</strong>로 낮춰주세요. 보다 정확한 발음 교정을 원할 때는 높여주시면 좋습니다.
                     </p>
+                </div>
+                <div>
+                    <button id="btn-install-app" data-action="install-app" class="w-full rounded-xl bg-blue-600 text-white font-bold py-3 px-4 disabled:opacity-60" aria-describedby="app-install-status">앱 설치</button>
+                    <p id="app-install-status" class="text-xs text-slate-500 mt-2 leading-relaxed" role="status" aria-live="polite">앱을 설치하면 홈 화면에서 바로 실행할 수 있습니다.</p>
                 </div>
             </div>
         </div>
@@ -217,7 +217,7 @@
 
     <footer class="bg-slate-900 text-slate-400 border-t border-slate-800 mt-auto py-8">
         <div class="max-w-7xl mx-auto px-4 text-center sm:px-6 lg:px-8">
-            <p class="text-xs">대한검정회 급수 기준 한자 학습 앱입니다. 자형·획순의 공식 자료 대조는 진행 중입니다.</p>
+            <p class="text-xs">대한검정회 급수별 한자를 배우고, 발음과 획순을 연습하는 한자 학습 앱입니다.</p>
             <a class="text-xs underline" href="assets/licenses/NOTICE.txt" target="_blank" rel="noopener">획 데이터 출처 및 라이선스</a>
             <p class="text-[11px] mt-2 text-slate-500">
                 <span class="font-mono text-amber-400">바른한자 : 급수별 쓰기 마스터 {{APP_VERSION}}</span> | 업데이트: {{COMMIT_DATE}}
@@ -241,9 +241,12 @@
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
+                navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
                     .then(reg => {
                         console.log('[PWA] ServiceWorker registered with scope:', reg.scope);
+                        document.addEventListener('visibilitychange', () => {
+                            if (!document.hidden) reg.update().catch(() => {});
+                        });
                     })
                     .catch(err => {
                         console.error('[PWA] ServiceWorker registration failed:', err);

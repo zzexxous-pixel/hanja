@@ -14,7 +14,7 @@ for(const file of ['script.js','bookmarkStore.js','hanja_data.js','tailwind-buil
 const manifest=await (await get('manifest.webmanifest')).json();
 const suffix=info.environment ? ` ${info.environment}` : '';
 assert.equal(manifest.short_name,`바른한자${suffix}`);
-assert.equal(manifest.name,`바른한자 : 급수별 쓰기 마스터${suffix}`);
+assert.equal(manifest.name,`바른한자${suffix}`);
 if(info.environment) assert.ok(html.includes(`>${info.environment}</span>`));
 else assert.ok(!html.includes('id="app-environment"'));
 if(new URL(base).pathname.endsWith('/preview/')) {

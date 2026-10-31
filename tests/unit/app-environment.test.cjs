@@ -8,7 +8,7 @@ for(const environment of ['pre','dev','']) {
   const {stampEnvironment}=await import('../../scripts/app-environment.mjs');
   const result=stampEnvironment(html,manifest,environment);
   const suffix=environment ? ` ${environment}` : '';
-  assert.equal(result.manifest.name,manifest.name+suffix);
+  assert.equal(result.manifest.name,'바른한자'+suffix);
   assert.equal(result.manifest.short_name,manifest.short_name+suffix);
   assert.ok(result.html.includes(`name="apple-mobile-web-app-title" content="바른한자${suffix}"`));
   assert.equal(result.manifest.start_url,'./');
@@ -20,3 +20,9 @@ for(const environment of ['pre','dev','']) {
   assert.equal(manifest.short_name,'바른한자');
  });
 }
+
+test('legacy main manifest also receives the short PC install name',async()=>{
+ const {stampEnvironment}=await import('../../scripts/app-environment.mjs');
+ const result=stampEnvironment(html,{...manifest,name:'바른한자 : 급수별 쓰기 마스터'},'dev');
+ assert.equal(result.manifest.name,'바른한자 dev');
+});

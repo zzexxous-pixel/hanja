@@ -23,7 +23,7 @@ test('card and popup preserve numbers and show earliest grade, even in cumulativ
  await page.locator('#grade-grid-container button').filter({has:page.locator('span', {hasText:/^8급$/})}).click();
  await check();
 });
-test('settings install button prompts once, then provides fallback instructions',async({page})=>{
+test('settings bottom install button appears when ready and prompts once',async({page})=>{
  await page.locator('[data-action="open-settings-modal"]').click();
  await page.evaluate(()=>{
   window.promptCount=0;
@@ -34,8 +34,9 @@ test('settings install button prompts once, then provides fallback instructions'
  await page.locator('#btn-install-app').click();
  await expect(page.locator('#app-install-status')).toContainText('취소');
  expect(await page.evaluate(()=>window.promptCount)).toBe(1);
- await page.locator('#btn-install-app').click();
- await expect(page.locator('#app-install-status')).toContainText('홈 화면에 추가');
+ await expect(page.locator('#btn-install-app')).toBeHidden();
+ const installBlock=page.locator('#btn-install-app').locator('..');
+ await expect(installBlock).toHaveJSProperty('nextElementSibling',null);
  await page.evaluate(()=>window.dispatchEvent(new Event('appinstalled')));
  await expect(page.locator('#btn-install-app')).toBeDisabled();
 });

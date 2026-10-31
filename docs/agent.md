@@ -207,3 +207,10 @@
 - installApp.js beforeinstallprompt 1회보관/직접클릭prompt, 취소/실패안내, iOS Safari공유→홈화면추가, 일반브라우저메뉴안내, standalone/appinstalled버튼비활성. 설치요청과실제설치완료구분. 기존pre/dev매니페스트사용. build복사허용목록+SWprecache추가.
 - 로컬check/단위31/build:preview통과. 신규E2E:누적급수및8급50카드라벨/팝업대조, 환경설정설치prompt취소/재클릭/완료상태. 예상64E2E, CI/배포확인예정. main/운영미변경.
 - bef1a7a Actions41190102383 성공: 단위31/E2E64(56.2초)/Pages9초/smoke8초 통과. 확인 /preview/?v=bef1a7a . 실제OS설치자체는브라우저지원/사용자승인필요, 자동검증은설치이벤트모의및실제UI동작임. test루트는기존main스냅샷유지(환경라벨dev만빌드삽입), 새설치/번호기능은preview에서확인.
+
+## 2026-10-31 짧은 설치이름/모바일설치흐름/설정위치/푸터
+- 사용자: 설치이름 바른한자(+pre/dev유지), 모바일설치는 HeartTune-test 참고, 설치버튼설정맨아래, 푸터공식대조진행문구삭제.
+- 참고 gh API HeartTune-test HEAD1addd2ebc36c4c3959a619de50cbd2970113d965 src/main.js 설치블록: beforeinstallprompt보관, 설치준비시만버튼노출, 클릭시prompt, SW updateViaCache:none+복귀업데이트. 별도강제설치API는없음.
+- manifest name/short_name 모두바른한자+환경. build stamping은옛main매니페스트도짧은이름정규화. 설정하단설치버튼은실제브라우저설치이벤트준비시노출(미준비버튼클릭→메뉴안내로바꾸던흐름제거). iOS는Safari공유→홈화면추가필수;웹앱이우회못함. SW캐시없이갱신/복귀체크추가. scope/start_url/앱identity변경없음.
+- 푸터: 대한검정회급수별한자를배우고발음/획순을연습하는앱으로설명.
+- npm ci 후 check/32단위/build:preview성공. 실제SW활성+PNG디코딩+CDP Page.getAppManifest/getInstallabilityErrors를desktop/mobile에서검사하는E2E추가(예정66개). 모의prompt만으로모바일문제해결주장금지. CI대기.
