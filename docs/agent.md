@@ -214,3 +214,5 @@
 - manifest name/short_name 모두바른한자+환경. build stamping은옛main매니페스트도짧은이름정규화. 설정하단설치버튼은실제브라우저설치이벤트준비시노출(미준비버튼클릭→메뉴안내로바꾸던흐름제거). iOS는Safari공유→홈화면추가필수;웹앱이우회못함. SW캐시없이갱신/복귀체크추가. scope/start_url/앱identity변경없음.
 - 푸터: 대한검정회급수별한자를배우고발음/획순을연습하는앱으로설명.
 - npm ci 후 check/32단위/build:preview성공. 실제SW활성+PNG디코딩+CDP Page.getAppManifest/getInstallabilityErrors를desktop/mobile에서검사하는E2E추가(예정66개). 모의prompt만으로모바일문제해결주장금지. CI대기.
+- 최종3be9690 Actions41199668380 성공: 단위32/E2E66(42.6초)/Pages22초/smoke8초. 실제desktop/mobile Chromium에서SW활성화,192/512아이콘디코딩,manifest검사및Page.getInstallabilityErrors오류없음확인. 사용자실기기설치/브라우저자격이벤트발생은별도확인필요. pre/dev설치이름짧게적용, 기존설치이름은OS갱신또는재설치필요할수있음.
+- 확인 /preview/?v=3be9690 . main/운영미병합미배포. 작업시로컬git헤더가오래된5423324였으나원격동일브랜치37025d9와대조해변경분만복원/커밋,기존기능/데이터유지. 현재branch원격정상fast-forward.
