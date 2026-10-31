@@ -215,7 +215,9 @@ test('completed strokes and their ancestors stay visible throughout native multi
   window.strokeProbe={node,frames:0,increases:0,transparent:0,last:Infinity,started:false,running:true};
   const tick=()=>{
    const p=window.strokeProbe;
-   if(Number(node.style.opacity)===1)p.started=true;
+   // Observe completed strokes, not the initial quiz hide/reset before playback starts.
+   // A pre-click opacity of 1 can otherwise count that initialization as a flicker.
+   if(/^획순: [1-3] \/ 3$/.test(document.querySelector('#modal-stroke-badge').textContent.trim()) && Number(node.style.opacity)===1)p.started=true;
    if(p.started){
     const offset=parseFloat(node.style.strokeDashoffset);
     if(offset>p.last+0.01)p.increases++;

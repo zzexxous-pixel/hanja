@@ -234,3 +234,4 @@
 - 발견/보완: deploy-to-prod의재사용verify는기존test환경빌드만검사. production입력을추가하고이관전운영빌드검증으로변경. PR에서도test66E2E후운영용빌드+66E2E리허설추가(실제전송없음). 이관main/저장소제한중복명시,동시실행직렬화,빈SYNC_TOKEN명시적오류/즉시종료추가. 기존force-copy운영이관방식보존.
 - 운영repo현행Pages워크플로우는push main시검증/배포/smoke수행확인. 최근수동이관41053012652(2026-10-30)성공확인. 현재GitHub연결은secrets목록403으로현재SYNC_TOKEN내용/유효성조회불가(실제전송없이인증확정불가),자격정보요청/노출없음.
 - 로컬운영환경빌드/check/단위34통과. PR의test/production브라우저검증대기. 브랜치유지,main직접push/다른브랜치전환금지유지.
+- PR#2 최초검증41203542868: test66통과,production은65+1재시도통과. 재시도원인조사: 완료획감시테스트가재생클릭전초기quiz숨김전opacity1상태부터측정하여초기dashreset을깜빡임으로오탐. 획순배지1획완료이후측정하도록완료획테스트범위수정(실제렌더링코드변경없음). test/production전체재검증후병합예정.
