@@ -192,3 +192,4 @@
 - 사용자는 단순25%감속이 아니라 main속도로 요청. main animateCharacter는 strokeAnimationSpeed=animSpeed*1.2 및 delayBetweenStrokes=150을 적용. 현재 animateStroke루프는 후자옵션을 자동적용하지 않아 간격이 누락되어 있었음.
 - 배율을main1.2로 복구하고 연속재생 획사이150ms대기를 명시추가. 마지막획/단일다음획에는불필요한대기없음. 대기중정지/직접쓰기/이전획의토큰취소유지. SVG렌더링변경없음.
 - 로컬check/단위24/build:preview성공. 추가검증:150ms일치 및 간격중정지시다음획진행차단. CI/배포대기.
+- 2351b10 Actions41187274562 성공: 단위24/E2E58(48.4초)/Pages/smoke 통과. 확인링크 /preview/?v=2351b10 . main미변경/미병합.
