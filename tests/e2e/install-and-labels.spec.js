@@ -23,10 +23,10 @@ test('card and popup preserve numbers and show earliest grade, even in cumulativ
  await page.locator('#grade-grid-container button').filter({has:page.locator('span', {hasText:/^8급$/})}).click();
  await check();
 });
-test('settings bottom install button stays visible and handles unavailable or existing installation',async({page})=>{
+test('settings install button stays visible but only enables for a native install prompt',async({page})=>{
  await page.locator('[data-action="open-settings-modal"]').click();
  await expect(page.locator('#btn-install-app')).toBeVisible();
- await page.locator('#btn-install-app').click();
+ await expect(page.locator('#btn-install-app')).toBeDisabled();
  await expect(page.locator('#app-install-status')).toContainText('이미 설치했거나');
  await page.evaluate(()=>{
   window.promptCount=0;
@@ -34,17 +34,16 @@ test('settings bottom install button stays visible and handles unavailable or ex
   event.prompt=async()=>{window.promptCount++;};event.userChoice=Promise.resolve({outcome:'dismissed'});
   window.dispatchEvent(event);
  });
+ await expect(page.locator('#btn-install-app')).toBeEnabled();
  await page.locator('#btn-install-app').click();
  await expect(page.locator('#app-install-status')).toContainText('취소');
  expect(await page.evaluate(()=>window.promptCount)).toBe(1);
  await expect(page.locator('#btn-install-app')).toBeVisible();
- await page.locator('#btn-install-app').click();
- await expect(page.locator('#app-install-status')).toContainText('이미 설치했거나');
+ await expect(page.locator('#btn-install-app')).toBeDisabled();
  expect(await page.evaluate(()=>window.promptCount)).toBe(1);
  const installBlock=page.locator('#btn-install-app').locator('..');
  await expect(installBlock).toHaveJSProperty('nextElementSibling',null);
  await page.evaluate(()=>window.dispatchEvent(new Event('appinstalled')));
- await expect(page.locator('#btn-install-app')).toBeEnabled();
- await page.locator('#btn-install-app').click();
+ await expect(page.locator('#btn-install-app')).toBeDisabled();
  await expect(page.locator('#app-install-status')).toContainText('설치가 완료');
 });

@@ -222,3 +222,8 @@
 - installApp.js hidden=false, busy일때만disabled/확인중. appinstalled/standalone에도버튼유지,중복prompt없이상태안내. 일반탭에서는정확한설치여부추측하지않음. iOS수동안내유지, native이벤트1회사용/취소/오류처리유지. 설정하단위치와짧은pre/dev앱이름유지.
 - 로컬check/단위33/build:preview성공. E2E기존설치시나리오를항상보임/미지원클릭/취소후재클릭/실제설치이벤트후클릭안내로수정. CI/배포대기.
 - 116aee6 Actions41202023743 성공: 단위33/E2E66(59.4초)/Pages8초/smoke6초. 확인 /preview/?v=116aee6 . main미병합/운영미배포.
+
+## 2026-10-31 설치 불가 시 버튼 비활성
+- 사용자: 설치불가상황이면설치버튼비활성표시. 항상표시는유지하되 busy/실행중/설치완료이벤트확인/native설치이벤트없음 상태에서disabled. 브라우저beforeinstallprompt 수신시만활성, 소비/취소/오류후비활성, 새이벤트수신시재활성.
+- 비활성버튼을클릭하지않아도상태안내표시(이미설치했거나브라우저미지원일수있음/iOS홈화면추가). 설정하단/짧은앱이름유지.
+- 로컬check/단위34/build:preview통과. E2E버튼활성/비활성전환검증수정, CI/배포대기.
