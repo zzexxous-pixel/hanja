@@ -136,13 +136,13 @@ test('every grade batch matches the runtime Korean-reading page order',async({pa
  });
  expect(mismatches).toEqual([]);
 });
-test('main card typography increases hanja by 2pt and decreases hun by 2pt',async({page})=>{
+test('main card typography is 55pt hanja and 17pt hun',async({page})=>{
  const sizes=await page.evaluate(()=>({
   hanja:parseFloat(getComputedStyle(document.querySelector('.dynamic-hanja-size')).fontSize),
   hun:parseFloat(getComputedStyle(document.querySelector('.dynamic-hun-size')).fontSize)
  }));
- expect(sizes.hanja).toBeCloseTo(64+2*96/72,2);
- expect(sizes.hun).toBeCloseTo(28-2*96/72,2);
+ expect(sizes.hanja).toBeCloseTo(55*96/72,2);
+ expect(sizes.hun).toBeCloseTo(17*96/72,2);
  const glyph=page.locator('.hanja-card-wrapper .hanja-outline').first();
  const box=await glyph.boundingBox();expect(box.width).toBeCloseTo(sizes.hanja,0);expect(box.height).toBeCloseTo(sizes.hanja,0);
 });

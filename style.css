@@ -40,8 +40,8 @@ body.quiz-mode .quiz-blur-target:not(.solved) {
 }
 
 :root {
-    --hanja-size: 50pt; /* 기존 64px(48pt)에서 2pt 증가; 카드 그리드와 동일 기준 */
-    --hun-size: 19pt; /* 28px(21pt) - 2pt */
+    --hanja-size: 55pt; /* 이전 50pt에서 5pt 증가; 카드 그리드와 동일 기준 */
+    --hun-size: 17pt; /* 이전 19pt에서 2pt 감소 */
 }
 .dynamic-hanja-size {
     font-size: var(--hanja-size) !important; /* 절대 고정 수치 반영 */

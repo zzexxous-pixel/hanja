@@ -144,3 +144,6 @@
 - 세션 복원 시 git HEAD가 main merge였고 이전 수정은 작업트리로만 복원되어 있었음. 원격 e4fe947과 파일 비교(차이는 기존 handoff4줄뿐) 후 git reset --soft origin/arena/0e0b3d2c-hanja-test로 동일 활성 브랜치 이력만 정렬. 이전 코드 수정 손실 없음.
 - 최종 Actions41155958530 성공: 코드265b365, 단위16개·데스크톱/모바일 E2E48개(37.8초) 통과. 새 크기의 실제 computed style/SVG 폭·높이 검증 포함. Pages9초·HTTP/SHA smoke4초 성공. https://github.com/zzexxous-pixel/hanja-test/actions/runs/41155958530
 - 사용자 확인: /preview/ 크기 조정, /preview/review/ 자형1차 대조 완료 상태. main 병합·운영 이관 없음.
+
+## 2026-10-31 메인 카드再調整
+- 사용자 추가 요청: 현재 크기에서 한자 +5pt(50→55pt), 훈음 -2pt(19→17pt). 상세창 크기 유지. 카드 SVG 및 그리드 기준 변수 함께 반영. E2E 크기 기대값 갱신.
