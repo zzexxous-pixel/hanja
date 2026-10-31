@@ -1,6 +1,6 @@
 # Agent handoff — 바른한자
 
-최종 갱신: 2026-10-30. 다음 세션은 이 문서를 먼저 읽고, 변경·검증·배포 결과와 새 결정을 계속 갱신한다.
+최종 갱신: 2026-10-31. 다음 세션은 이 문서를 먼저 읽고, 변경·검증·배포 결과와 새 결정을 계속 갱신한다.
 
 ## 사용자 결정 / 작업 원칙
 - 대한검정회 기준 아동 한자 학습용 정적 웹앱. 한국어문회 기준이라는 README 문구는 오류.
@@ -20,7 +20,7 @@
 - 사용자가 이전 preview에서 구버전 즐겨찾기 변환과 기능을 직접 확인하여 정상 동작을 확인했다.
 - Pages는 저장소당 하나의 산출물: preview 배포도 main 루트와 preview를 함께 패키징해야 한다.
 - main 배포 역시 preview를 보존하도록 동일 빌드를 사용한다. 다음 작업 브랜치로 넘어가면 repo variable PREVIEW_REF를 origin/arena/새브랜치 로 지정하거나 deploy.yml 기본값을 갱신한다.
-- 현재 기본 preview ref: origin/arena/645f2a96-hanja-test. preview 브랜치 push는 자기 HEAD를 사용한다.
+- 현재 브랜치 deploy.yml 기본 preview ref: origin/arena/0e0b3d2c-hanja-test. main에는 아직 미병합. preview 브랜치 push는 자기 HEAD를 사용한다.
 - 배포는 .github/workflows/deploy.yml push(main, arena/**) / workflow_dispatch. verify.yml 재사용.
 - docs/ 및 Markdown만 변경하면 자동 배포 생략. 필요하면 수동 workflow_dispatch.
 - 운영 hanja 이관은 deploy-to-prod.yml의 수동 실행만. main에서만 허용, 기존 source force-push 관례 유지.
@@ -127,3 +127,18 @@
 - SW CacheStorage 읽기 자체가 차단되어도 네트워크로 진행하도록 보완하고 단위 검사 추가(현재15개). 할당량 오류는 응답 성공을 깨뜨리지 않음.
 
 - 2차CI41068687626은캐시 복원에서 GitHub 'Egress is over the account limit'로 약9분 지연 후 진행.44/46 E2E 통과, 새 급수순 대조2개는 private getEum을 테스트가 global로 호출해 실패. 테스트를 실제 공개 API HanjaApp.setGrade + hanjaData 결과 비교로 수정(앱 기능 오류는 아님). setup-node cache 다운로드 세그먼트 대기를1분으로 제한해 준비 단계 장기정체 완화.
+- 최종코드 e4fe947, Actions41070485512 성공: 단위15개, Chromium 데스크톱/모바일 E2E46개 통과. 50자 일반페이지1개 bundle 요청, 503 자동재시도, 잘못된JSON fallback/online복구, 전급수 전페이지 실제 음순 일치 모두 확인.
+- Pages preview 배포10초/배포후 HTTP·SHA smoke6초 성공. https://github.com/zzexxous-pixel/hanja-test/actions/runs/41070485512
+- 확인 URL https://zzexxous-pixel.github.io/hanja-test/preview/ . main 미병합, 운영 이관 없음. 절대 로딩시간이나 배속 향상 수치는 실기기 비교 측정하지 않았으므로 주장하지 않는다.
+- 후속 문서 커밋938cb3a의 push는 GitHub remote Internal Server Error(HTTP500)로2회 실패. 코드 e4fe947 및 preview는 이미 원격/배포 완료이며 영향 없음. 문서 커밋만 로컬 ahead 상태이므로 다음 작업에서 push 재시도. 인증 오류가 아니다. 실행 로그 다운로드도 results-receiver 호스트 제한으로 EOF, workflow의 최종 성공은 gh run watch로 확인했다.
+
+
+## 2026-10-31 크기 조정 및 전 급수 PDF 검토
+- 사용자 요청: 메인 한자 +2포인트, 훈음 -2포인트. 문자 그대로 CSS pt 적용:64px=48pt →50pt(66.667px),28px=21pt →19pt(25.333px). grid min-width도 동일 변수 사용, 상세 모달 크기 유지.
+- 사용자 추가 PDF8개970자 + 기존8급30자 = 9개12페이지1000자. 원본 내장 글꼴 렌더링으로22장 대조 이미지 전부 확인, 구성요소 민감 항목23자 확대 재확인. 명백한 누락/치환 발견 없음. '서체 차이 허용' 기준은 사용자가 명시적으로 승인.
+- docs/glyph-audit-all-grades.md에 방법/신출 수량/한계 기록. scripts/compare-pdf-glyphs.py는 재현용 선택도구이며 승인 자동화 아님. PDF/캡처는 공개하지 않음.
+- data/glyph-reference.json:1000자 자형1차 대조완료, 원본9개SHA256와 선택SVG별해시 저장. 바뀐 SVG는 보고서에서 pending으로 복귀. 기관 인증 아님. 획순1000자 미확인, 공식획수敬13만기존근거유지.
+- 기존 report는 reference 존재 자체로 획수 확인을 판정해 새 자형근거가 있는999자를 잘못 mismatch 처리할 수 있었음. strokeCount가 정수일 때만 비교하도록 수정하고 회귀 테스트 추가.
+- 자형 데이터/한자 코드/훈음은 변경하지 않음. 敬/産 포함18개 예외 그대로.
+- 로컬 syntax/data check, unit16개, preview build 통과. 브라우저48개 예정; 배포 결과 후속 기록.
+- 세션 복원 시 git HEAD가 main merge였고 이전 수정은 작업트리로만 복원되어 있었음. 원격 e4fe947과 파일 비교(차이는 기존 handoff4줄뿐) 후 git reset --soft origin/arena/0e0b3d2c-hanja-test로 동일 활성 브랜치 이력만 정렬. 이전 코드 수정 손실 없음.
