@@ -2,6 +2,18 @@
 'use strict';
 
 let currentGrade = localStorage.getItem('hanja_grade') || '4급';
+// First appearance in the source grade order, independent of selected cumulative grade.
+const firstGradeByCharacter = new Map();
+for (const grade of GRADE_ORDER) {
+    for (const item of hanjaNewData[grade] || []) {
+        if (!firstGradeByCharacter.has(item.h)) firstGradeByCharacter.set(item.h, grade);
+    }
+}
+function characterNumberLabel(index) {
+    const grade = firstGradeByCharacter.get(hanjaData[index]?.h);
+    return `#${index + 1}${grade ? `. ${grade}` : ''}`;
+}
+
 let totalPages = 12; 
 
 // 💡 신규 추가: 로컬스토리지 연동 발음 임계값 변수 바인딩 (기본값 60% = 0.6)
@@ -149,7 +161,7 @@ function generateTableHTML(t, pageData, titleLabel) {
         gridHTML += `
             <div class="hanja-card-wrapper bg-white border border-slate-100 rounded-xl p-3 flex flex-col items-center relative hover:bg-slate-50 transition-all shadow-sm" data-index="${globalIdx}">
                 <div data-action="toggle-bookmark" data-index="${globalIdx}" class="w-full flex justify-between items-center mb-1 cursor-pointer bg-transparent select-none">
-                    <span class="card-status-label text-[10px] font-mono font-bold text-slate-400 leading-none flex items-center justify-center h-4 min-w-[24px]">#${globalIdx + 1}</span>
+                    <span class="card-status-label text-[10px] font-mono font-bold text-slate-400 leading-none flex items-center justify-center h-4 min-w-[24px]">${characterNumberLabel(globalIdx)}</span>
                     <span class="star-wrapper-${globalIdx} btn-mini-icon type-star ${isStarred ? 'starred' : 'unstarred'}">
                         <i class="fa-solid fa-star"></i>
                     </span>
@@ -199,7 +211,7 @@ function resetSingleTabDOM(tabNum) {
         cell.classList.remove('card-final-correct', 'card-final-incorrect', 'mic-pulse-active', 'recording-active', 'checking-pulse-active');
         const idx = cell.getAttribute('data-index');
         const statusLabel = cell.querySelector('.card-status-label');
-        if (statusLabel) statusLabel.innerHTML = `#${parseInt(idx, 10) + 1}`;
+        if (statusLabel) statusLabel.innerHTML = characterNumberLabel(parseInt(idx, 10));
     });
     tabCache[tabNum].querySelectorAll('.quiz-blur-target').forEach(span => {
         span.classList.remove('solved');
@@ -310,7 +322,7 @@ function updateCardUIState(index, state, passType) {
     cardWrapper.classList.remove('mic-pulse-active', 'recording-active', 'checking-pulse-active', 'card-final-correct', 'card-final-incorrect');
     
     if (state === 'idle') {
-        statusLabel.innerHTML = `#${index + 1}`;
+        statusLabel.textContent = characterNumberLabel(index);
     } else if (state === 'touch') {
         statusLabel.innerHTML = `<span class="text-amber-500 font-bold">⏳</span>`;
     } else if (state === 'active') {
@@ -405,7 +417,7 @@ function openModal(index) {
     currentActiveModalIdx = index;
     
     // 1. 헤더 데이터 바인딩
-    document.getElementById('modal-idx').innerText = `NO. ${String(index + 1).padStart(3, '0')}`;
+    document.getElementById('modal-idx').innerText = characterNumberLabel(index);
     document.getElementById('modal-hanja').innerHTML = glyphMarkup(data.h);
     GlyphStore.hydrate(document.getElementById('modal-hanja'));
     document.getElementById('modal-hun').innerText = data.m;

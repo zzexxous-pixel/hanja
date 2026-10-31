@@ -13,6 +13,7 @@ const PRECACHE_ASSETS = [
     './hanja_data.js',
     './audioEngine.js',
     './speechEngine.js',
+    './installApp.js',
     './writingEngine.js',
     './strokeData.js',
     './assets/vendor/hanzi-writer.min.js',

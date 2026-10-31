@@ -69,6 +69,10 @@
             </div>
             <div class="space-y-6 flex-grow">
                 <div>
+                    <button id="btn-install-app" data-action="install-app" class="w-full rounded-xl bg-blue-600 text-white font-bold py-3 px-4 disabled:opacity-60" aria-describedby="app-install-status">앱 설치</button>
+                    <p id="app-install-status" class="text-xs text-slate-500 mt-2 leading-relaxed" role="status" aria-live="polite">앱을 설치하면 홈 화면에서 바로 실행할 수 있습니다.</p>
+                </div>
+                <div>
                     <div class="flex justify-between items-center mb-2">
                         <label class="text-sm font-black text-slate-700 select-none">발음 인식 정답 기준 (감도)</label>
                         <span id="threshold-value-display" class="text-sm font-extrabold text-blue-600">60%</span>
@@ -112,7 +116,7 @@
                     <button id="modal-star-btn" class="btn-popup-top-icon theme-star unstarred" title="즐겨찾기">
                         <i class="fa-solid fa-star"></i>
                     </button>
-                    <span class="text-xs sm:text-sm font-mono font-extrabold text-slate-400 cursor-pointer" id="modal-idx">NO. 001</span>
+                    <span class="text-xs sm:text-sm font-mono font-extrabold text-slate-400 cursor-pointer" id="modal-idx">#1. 8급</span>
                 </div>
                 <div class="flex items-center gap-1.5 font-black text-base sm:text-lg">
                     <span id="modal-hanja" class="hanja-glyph text-blue-700 text-xl sm:text-2xl">家</span>
@@ -230,6 +234,7 @@
     <script src="bookmarkStore.js?v={{APP_VERSION}}"></script>
     <script src="glyph-index.js?v={{APP_VERSION}}"></script>
     <script src="glyphStore.js?v={{APP_VERSION}}"></script>
+    <script src="installApp.js?v={{APP_VERSION}}"></script>
     <script src="script.js?v={{APP_VERSION}}"></script>
 
     <!-- PWA Service Worker Registration -->
