@@ -220,7 +220,7 @@ test.describe('바른한자 - 예외 케이스 및 데이터 무결성 철벽 �
     await actionArea.click();
 
     const statusLabel = firstCardWrapper.locator('.card-status-label');
-    await expect(statusLabel).toHaveText('#1');
+    await expect(statusLabel).toHaveText(/^#1(?:\. (?:준)?[1-8]급)?$/);
     await expect(firstCardWrapper).not.toHaveClass(/recording-active/);
   });
 

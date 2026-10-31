@@ -5,6 +5,9 @@ on:
       preview:
         type: boolean
         default: false
+      production:
+        type: boolean
+        default: false
       preview_ref:
         type: string
         default: ''
@@ -19,6 +22,8 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-node@v5
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: '1'
         with:
           node-version: '22'
           cache: npm
@@ -28,7 +33,13 @@ jobs:
         env:
           PREVIEW_REF: ${{ inputs.preview_ref }}
         run: |
-          if [ '${{ inputs.preview }}' = 'true' ]; then npm run build:preview; else npm run build; fi
+          if [ '${{ inputs.production }}' = 'true' ]; then
+            GITHUB_REPOSITORY=zzexxous-pixel/hanja npm run build
+          elif [ '${{ inputs.preview }}' = 'true' ]; then
+            npm run build:preview
+          else
+            npm run build
+          fi
       - run: npx playwright install --with-deps chromium
       - name: Verify main root as well when preserving a preview
         if: inputs.preview && github.ref == 'refs/heads/main'
@@ -38,6 +49,12 @@ jobs:
       - run: npm run test:e2e
         env:
           APP_PATH: ${{ inputs.preview && '/preview/' || '/' }}
+      # PRs must pass both test and production packaging before main is approved.
+      - name: Rehearse production packaging and browser tests without transferring
+        if: github.event_name == 'pull_request'
+        run: |
+          GITHUB_REPOSITORY=zzexxous-pixel/hanja npm run build
+          APP_PATH=/ npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

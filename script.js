@@ -2,6 +2,18 @@
 'use strict';
 
 let currentGrade = localStorage.getItem('hanja_grade') || '4급';
+// First appearance in the source grade order, independent of selected cumulative grade.
+const firstGradeByCharacter = new Map();
+for (const grade of GRADE_ORDER) {
+    for (const item of hanjaNewData[grade] || []) {
+        if (!firstGradeByCharacter.has(item.h)) firstGradeByCharacter.set(item.h, grade);
+    }
+}
+function characterNumberLabel(index) {
+    const grade = firstGradeByCharacter.get(hanjaData[index]?.h);
+    return `#${index + 1}${grade ? `. ${grade}` : ''}`;
+}
+
 let totalPages = 12; 
 
 // 💡 신규 추가: 로컬스토리지 연동 발음 임계값 변수 바인딩 (기본값 60% = 0.6)
@@ -30,7 +42,6 @@ let titleClickTimer = null;
 
 // [신규] 쓰기 엔진 싱글톤 및 모달 상태 홀더
 let modalWriter = null;
-let currentModalMode = 'demo';
 let modalResizeObserver = null;
 
 function toggleBookmark(index, event) {
@@ -124,8 +135,7 @@ function buildFavoritesDOM() {
 }
 
 function glyphMarkup(character) {
-    const code = character.codePointAt(0).toString(16).toUpperCase().padStart(4, '0');
-    return `<img class="hanja-outline" src="assets/glyphs/${code}.svg" alt="" aria-hidden="true" loading="lazy" decoding="async" width="64" height="64"><span class="sr-only">${character}</span>`;
+    return GlyphStore.markup(character, currentGrade);
 }
 
 function generateTableHTML(t, pageData, titleLabel) {
@@ -151,7 +161,7 @@ function generateTableHTML(t, pageData, titleLabel) {
         gridHTML += `
             <div class="hanja-card-wrapper bg-white border border-slate-100 rounded-xl p-3 flex flex-col items-center relative hover:bg-slate-50 transition-all shadow-sm" data-index="${globalIdx}">
                 <div data-action="toggle-bookmark" data-index="${globalIdx}" class="w-full flex justify-between items-center mb-1 cursor-pointer bg-transparent select-none">
-                    <span class="card-status-label text-[10px] font-mono font-bold text-slate-400 leading-none flex items-center justify-center h-4 min-w-[24px]">#${globalIdx + 1}</span>
+                    <span class="card-status-label text-[10px] font-mono font-bold text-slate-400 leading-none flex items-center justify-center h-4 min-w-[24px]">${characterNumberLabel(globalIdx)}</span>
                     <span class="star-wrapper-${globalIdx} btn-mini-icon type-star ${isStarred ? 'starred' : 'unstarred'}">
                         <i class="fa-solid fa-star"></i>
                     </span>
@@ -201,7 +211,7 @@ function resetSingleTabDOM(tabNum) {
         cell.classList.remove('card-final-correct', 'card-final-incorrect', 'mic-pulse-active', 'recording-active', 'checking-pulse-active');
         const idx = cell.getAttribute('data-index');
         const statusLabel = cell.querySelector('.card-status-label');
-        if (statusLabel) statusLabel.innerHTML = `#${parseInt(idx, 10) + 1}`;
+        if (statusLabel) statusLabel.innerHTML = characterNumberLabel(parseInt(idx, 10));
     });
     tabCache[tabNum].querySelectorAll('.quiz-blur-target').forEach(span => {
         span.classList.remove('solved');
@@ -238,6 +248,7 @@ function switchTab(tabNum) {
         container.appendChild(tabCache[tabNum]);
     }
     
+    GlyphStore.hydrate(container);
     const tabBtn7 = document.getElementById('tab-7');
     const pagerWrapper = document.getElementById('pager-wrapper');
     const pageIndicator = document.getElementById('page-indicator');
@@ -311,7 +322,7 @@ function updateCardUIState(index, state, passType) {
     cardWrapper.classList.remove('mic-pulse-active', 'recording-active', 'checking-pulse-active', 'card-final-correct', 'card-final-incorrect');
     
     if (state === 'idle') {
-        statusLabel.innerHTML = `#${index + 1}`;
+        statusLabel.textContent = characterNumberLabel(index);
     } else if (state === 'touch') {
         statusLabel.innerHTML = `<span class="text-amber-500 font-bold">⏳</span>`;
     } else if (state === 'active') {
@@ -406,8 +417,9 @@ function openModal(index) {
     currentActiveModalIdx = index;
     
     // 1. 헤더 데이터 바인딩
-    document.getElementById('modal-idx').innerText = `NO. ${String(index + 1).padStart(3, '0')}`;
+    document.getElementById('modal-idx').innerText = characterNumberLabel(index);
     document.getElementById('modal-hanja').innerHTML = glyphMarkup(data.h);
+    GlyphStore.hydrate(document.getElementById('modal-hanja'));
     document.getElementById('modal-hun').innerText = data.m;
     document.getElementById('naver-link').href = `https://hanja.dict.naver.com/#/search?query=${encodeURIComponent(data.h)}`;
 
@@ -491,9 +503,15 @@ function initModalWritingEngine(char) {
         modalWriter = new WritingEngine({
             container: container,
             char: char,
-            mode: currentModalMode,
             width: initialSize,
             height: initialSize,
+            onPlaybackChange: (playing) => {
+                const button = document.getElementById('btn-toggle-writing');
+                if (button) {
+                    button.innerHTML = playing ? '<i class="fa-solid fa-pause"></i> 정지' : '<i class="fa-solid fa-play"></i> 재생';
+                    button.setAttribute('aria-pressed', String(playing));
+                }
+            },
             onCharLoaded: (meta) => {
                 updateModalSpecUI(meta);
             },
@@ -515,11 +533,11 @@ function initModalWritingEngine(char) {
                     status.innerText = reason;
                 }
             },
-            onComplete: () => {
+            onComplete: (result) => {
                 const status = document.getElementById('modal-stroke-status');
                 if (status) {
                     status.className = 'text-emerald-600 font-bold';
-                    status.innerText = '🎉 완벽하게 작성했습니다!';
+                    status.innerText = result?.source === 'demo' ? '획순 시연 완료 · 이전획으로 돌아가 써보세요.' : '🎉 완벽하게 작성했습니다!';
                 }
             }
         });
@@ -561,33 +579,14 @@ function updateModalSpecUI(meta) {
     if (badgeEl) badgeEl.innerText = `획순: 0 / ${meta.totalStrokes}`;
     if (statusEl) {
         statusEl.className = 'text-blue-600 font-bold';
-        statusEl.innerText = currentModalMode === 'demo' ? '획순 시연 준비 완료' : '직접 한자를 써보세요.';
+        statusEl.innerText = '획순 시연 준비 완료 · 바로 써보세요.';
     }
 }
 
-function setModalMode(mode) {
-    currentModalMode = mode;
-    const btnDemo = document.getElementById('btn-mode-demo');
-    const btnPractice = document.getElementById('btn-mode-practice');
-    const panelDemo = document.getElementById('panel-mode-demo');
-    const panelPractice = document.getElementById('panel-mode-practice');
-
-    if (mode === 'demo') {
-        if (btnDemo) btnDemo.className = 'writing-tab-btn active';
-        if (btnPractice) btnPractice.className = 'writing-tab-btn';
-        if (panelDemo) panelDemo.classList.remove('hidden');
-        if (panelPractice) panelPractice.classList.add('hidden');
-    } else {
-        if (btnDemo) btnDemo.className = 'writing-tab-btn';
-        if (btnPractice) btnPractice.className = 'writing-tab-btn active';
-        if (panelDemo) panelDemo.classList.add('hidden');
-        if (panelPractice) panelPractice.classList.remove('hidden');
-    }
-
-    if (modalWriter) {
-        modalWriter.setMode(mode);
-        if (modalWriter.isReady) updateModalSpecUI(modalWriter.getMeta());
-    }
+function toggleModalWriting() {
+    if (!modalWriter || !modalWriter.isReady) return;
+    if (modalWriter.isPlaying) pauseModalWriting();
+    else playModalWriting();
 }
 
 function playModalWriting() {
@@ -1094,20 +1093,14 @@ window.onload = function() {
             case 'toggle-favorites':
                 toggleFavorites();
                 break;
-            case 'set-modal-mode':
-                setModalMode(actionBtn.getAttribute('data-mode'));
-                break;
             case 'prev-modal-hanja':
                 prevModalHanja();
                 break;
             case 'next-modal-hanja':
                 nextModalHanja();
                 break;
-            case 'play-modal-writing':
-                playModalWriting();
-                break;
-            case 'pause-modal-writing':
-                pauseModalWriting();
+            case 'toggle-modal-writing':
+                toggleModalWriting();
                 break;
             case 'step-prev-modal-stroke':
                 stepPrevModalStroke();

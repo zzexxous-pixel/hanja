@@ -13,11 +13,14 @@ const PRECACHE_ASSETS = [
     './hanja_data.js',
     './audioEngine.js',
     './speechEngine.js',
+    './installApp.js',
     './writingEngine.js',
     './strokeData.js',
     './assets/vendor/hanzi-writer.min.js',
     './assets/strokes/manifest.json',
     './bookmarkStore.js',
+    './glyph-index.js',
+    './glyphStore.js',
     './script.js'
 ];
 
@@ -51,9 +54,24 @@ self.addEventListener('fetch', (event) => {
     // 추가: http 또는 https 요청이 아니면 가로채지 않음
     if (!event.request.url.startsWith('http')) return;
     
+    if (event.request.mode === 'navigate') {
+        event.respondWith(fetch(event.request).then(response => {
+            if (!response.ok) throw new Error('Navigation failed');
+            const copy = response.clone();
+            event.waitUntil(caches.open(CACHE_VERSION).then(cache => cache.put(event.request, copy)).catch(() => {}));
+            return response;
+        }).catch(async () => {
+            try {
+                const cache = await caches.open(CACHE_VERSION);
+                return await cache.match(event.request) || await cache.match('./index.html') || new Response('Offline', {status:503});
+            } catch (_) { return new Response('Offline', {status:503}); }
+        }));
+        return;
+    }
+
     // Cache First, Network Fallback with Dynamic Caching
     event.respondWith(
-        caches.open(CACHE_VERSION).then(cache => cache.match(event.request, { ignoreSearch: true })).then((cachedResponse) => {
+        caches.open(CACHE_VERSION).then(cache => ['no-store', 'reload'].includes(event.request.cache) ? undefined : cache.match(event.request)).catch(() => undefined).then((cachedResponse) => {
             if (cachedResponse) {
                 return cachedResponse;
             }
@@ -64,7 +82,8 @@ self.addEventListener('fetch', (event) => {
                 }
                 const responseToCache = networkResponse.clone();
                 caches.open(CACHE_VERSION).then((cache) => {
-                    cache.put(event.request, responseToCache);
+                    if (event.request.cache !== 'no-store') return cache.put(event.request, responseToCache);
+                }).catch(() => { /* Cache quota must not break a successful response. */
                 });
                 return networkResponse;
             }).catch(() => {
@@ -72,6 +91,7 @@ self.addEventListener('fetch', (event) => {
                 if (event.request.headers.get('accept')?.includes('text/html')) {
                     return caches.open(CACHE_VERSION).then(cache => cache.match('./index.html', { ignoreSearch: true }));
                 }
+                return new Response('', {status: 503, statusText: 'Offline'});
             });
         })
     );

@@ -22,7 +22,7 @@ jobs:
       preview: ${{ github.event_name != 'pull_request' && github.repository == 'zzexxous-pixel/hanja-test' }}
       # Main rebuilds the selected preview too, so main deployment does not erase it.
       # Set repository variable PREVIEW_REF when another session becomes the active preview.
-      preview_ref: ${{ github.ref_name == 'main' && (vars.PREVIEW_REF || 'origin/arena/645f2a96-hanja-test') || '' }}
+      preview_ref: ${{ github.ref_name == 'main' && (vars.PREVIEW_REF || 'origin/arena/0e0b3d2c-hanja-test') || '' }}
   deploy:
     if: github.event_name != 'pull_request'
     needs: verify

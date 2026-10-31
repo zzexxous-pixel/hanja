@@ -1,13 +1,19 @@
 name: 운영 서버(hanja) 수동 이관
 on:
   workflow_dispatch:
+concurrency:
+  group: production-transfer
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:
   verify:
     if: github.ref == 'refs/heads/main' && github.repository == 'zzexxous-pixel/hanja-test'
     uses: ./.github/workflows/verify.yml
+    with:
+      production: true
   transfer:
+    if: github.ref == 'refs/heads/main' && github.repository == 'zzexxous-pixel/hanja-test'
     needs: verify
     runs-on: ubuntu-latest
     steps:
@@ -22,5 +28,10 @@ jobs:
         env:
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
+          set -euo pipefail
+          if [ -z "${SYNC_TOKEN}" ]; then
+            echo '::error::Production transfer credential SYNC_TOKEN is not configured.'
+            exit 1
+          fi
           git remote add production "https://x-access-token:${SYNC_TOKEN}@github.com/zzexxous-pixel/hanja.git"
           git push production HEAD:main --force

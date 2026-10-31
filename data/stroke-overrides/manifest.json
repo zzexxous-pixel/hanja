@@ -227,6 +227,26 @@
       "countEvidence": null,
       "reviewStatus": "coverage-fallback; official-review-pending",
       "enabled": true
+    },
+    "産": {
+      "codePoint": "7523",
+      "sourceFile": "sources/7523.svg",
+      "sourceUrl": "https://github.com/parsimonhi/animCJK/blob/99dba566b92daf45ae20d05e6c91d3f68d8619f2/svgsJa/29987.svg",
+      "sourceCommit": "99dba566b92daf45ae20d05e6c91d3f68d8619f2",
+      "sourceSha256": "41697f5730e6d58b4a5c82471fa63b40f2cd5bf579e787fe0e3450aa7cfc76b4",
+      "license": "Arphic Public License",
+      "expectedStrokes": 11,
+      "radStrokes": [
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "radChar": "生",
+      "countEvidence": null,
+      "reviewStatus": "standalone-glyph-geometry-fix; official-review-pending",
+      "enabled": true
     }
   }
 }

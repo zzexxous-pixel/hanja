@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { packageStrokes } from './strokes.mjs';
+import { stampEnvironment } from './app-environment.mjs';
 import { writeAuditReport } from './audit-glyphs.mjs';
 const require = createRequire(import.meta.url);
 const preview = process.argv.includes('--preview');
@@ -20,13 +21,17 @@ function snapshot(ref, name) {
 }
 function pack(src, dest, ref, suffix) {
   mkdirSync(dest, {recursive:true});
-  const assets = ['index.html','style.css','hanja_data.js','audioEngine.js','speechEngine.js','writingEngine.js','script.js','bookmarkStore.js','strokeData.js','sw.js','manifest.webmanifest','icon-192.png','icon-512.png','favicon.ico','img'];
+  const assets = ['index.html','style.css','hanja_data.js','audioEngine.js','speechEngine.js','installApp.js','writingEngine.js','script.js','bookmarkStore.js','strokeData.js','glyphStore.js','sw.js','manifest.webmanifest','icon-192.png','icon-512.png','favicon.ico','img'];
   for (const file of assets) if (existsSync(join(src,file))) cpSync(join(src,file),join(dest,file),{recursive:true});
   execFileSync(process.execPath,[require.resolve('tailwindcss/lib/cli.js'),'--content', ['index.html','script.js','writingEngine.js'].map(f=>join(src,f)).join(','),'-o',join(dest,'tailwind-build.css'),'--minify'],{stdio:'inherit'});
   if (existsSync(join(src,'data/stroke-overrides/manifest.json'))) {
     packageStrokes(src,dest);
     if (!process.env.GITHUB_REPOSITORY || process.env.GITHUB_REPOSITORY.endsWith('/hanja-test')) writeAuditReport(src,join(dest,'review'),{glyphBase:'../assets/glyphs',writeGlyphs:false});
   }
+  const environment = suffix.includes('preview') ? 'pre' : suffix === '-test' ? 'dev' : '';
+  const stamped = stampEnvironment(readFileSync(join(dest,'index.html'),'utf8'), JSON.parse(readFileSync(join(dest,'manifest.webmanifest'),'utf8')), environment);
+  writeFileSync(join(dest,'index.html'),stamped.html);
+  writeFileSync(join(dest,'manifest.webmanifest'),JSON.stringify(stamped.manifest,null,2)+'\n');
   const base = readFileSync(join(src,'VERSION'),'utf8').trim();
   const versionCommit = git('log','-1','--format=%H',ref,'--','VERSION');
   const patch = git('rev-list','--count',`${versionCommit}..${ref}`);
@@ -37,7 +42,7 @@ function pack(src, dest, ref, suffix) {
     const path = join(dest,file);
     writeFileSync(path,readFileSync(path,'utf8').replaceAll('{{APP_VERSION}}',version).replaceAll('{{COMMIT_DATE}}',date));
   }
-  writeFileSync(join(dest,'build-info.json'),JSON.stringify({version,sha},null,2)+'\n');
+  writeFileSync(join(dest,'build-info.json'),JSON.stringify({version,sha,environment},null,2)+'\n');
 }
 try {
   rmSync(out,{recursive:true,force:true});

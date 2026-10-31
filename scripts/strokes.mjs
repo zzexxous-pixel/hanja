@@ -63,13 +63,34 @@ export function packageStrokes(src,dest) {
  const manifest=JSON.parse(readFileSync(join(src,'data/stroke-overrides/manifest.json')));
  const assets=join(dest,'assets');
  for(const part of ['strokes','glyphs','vendor','licenses'])mkdirSync(join(assets,part),{recursive:true});
- const entries={};
- for(const item of characters(src)) {
+ const entries={}, outlines={};
+ const list=characters(src);
+ for(const item of list) {
   const {data,override}=selectData(src,item,manifest),code=codePoint(item.h);
   writeFileSync(join(assets,'strokes',code+'.json'),JSON.stringify(data));
   writeFileSync(join(assets,'glyphs',code+'.svg'),glyphSvg(data));
+  outlines[code]=data.strokes;
   entries[item.h]={file:code+'.json',strokes:data.strokes.length,source:override?'override':'hanzi-writer-data@2.0.1',sourceUrl:override?.sourceUrl||'https://github.com/chanind/hanzi-writer-data',license:'Arphic Public License',reviewStatus:override?.reviewStatus||'unreviewed'};
  }
+ const files=[],members=[],grades={},seenHashes=new Map();
+ const eum=m=>m.trim().split(/\s+/).at(-1).split(',')[0];
+ const order=[...new Set(list.map(item=>item.grade))];
+ for(let g=0;g<order.length;g++) {
+  const sorted=list.filter(item=>order.indexOf(item.grade)<=g).sort((a,b)=>eum(a.m).localeCompare(eum(b.m),'ko') || a.m.localeCompare(b.m,'ko'));
+  grades[order[g]]=[];
+  for(let i=0;i<sorted.length;i+=50) {
+   const batch=Object.fromEntries(sorted.slice(i,i+50).map(item=>[codePoint(item.h),outlines[codePoint(item.h)]]));
+   const text=JSON.stringify(batch),hash=createHash('sha256').update(text).digest('hex').slice(0,16);
+   let number=seenHashes.get(hash);
+   if(number===undefined) {
+    number=files.length; const file=`batch-${number}-${hash}.json`;
+    writeFileSync(join(assets,'glyphs',file),text);
+    files.push(file); members.push(Object.keys(batch)); seenHashes.set(hash,number);
+   }
+   grades[order[g]].push(number);
+  }
+ }
+ writeFileSync(join(dest,'glyph-index.js'),`window.GLYPH_INDEX=${JSON.stringify({files,members,grades})};\n`);
  writeFileSync(join(assets,'strokes/manifest.json'),JSON.stringify({schemaVersion:1,characters:entries}));
  cpSync(join(dirname(require.resolve('hanzi-writer/package.json')),'dist/hanzi-writer.min.js'),join(assets,'vendor/hanzi-writer.min.js'));
  cpSync(join(dirname(require.resolve('hanzi-writer/package.json')),'LICENSE'),join(assets,'licenses/hanzi-writer-MIT.txt'));
