@@ -142,3 +142,5 @@
 - 자형 데이터/한자 코드/훈음은 변경하지 않음. 敬/産 포함18개 예외 그대로.
 - 로컬 syntax/data check, unit16개, preview build 통과. 브라우저48개 예정; 배포 결과 후속 기록.
 - 세션 복원 시 git HEAD가 main merge였고 이전 수정은 작업트리로만 복원되어 있었음. 원격 e4fe947과 파일 비교(차이는 기존 handoff4줄뿐) 후 git reset --soft origin/arena/0e0b3d2c-hanja-test로 동일 활성 브랜치 이력만 정렬. 이전 코드 수정 손실 없음.
+- 최종 Actions41155958530 성공: 코드265b365, 단위16개·데스크톱/모바일 E2E48개(37.8초) 통과. 새 크기의 실제 computed style/SVG 폭·높이 검증 포함. Pages9초·HTTP/SHA smoke4초 성공. https://github.com/zzexxous-pixel/hanja-test/actions/runs/41155958530
+- 사용자 확인: /preview/ 크기 조정, /preview/review/ 자형1차 대조 완료 상태. main 병합·운영 이관 없음.
