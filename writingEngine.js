@@ -168,7 +168,7 @@
         highlightColor: this.options.highlightColor,
         drawingColor: this.options.drawingColor,
         drawingWidth: penWidth,
-        strokeAnimationSpeed: this.options.animSpeed * 1.2,
+        strokeAnimationSpeed: this.options.animSpeed * 0.9,
         delayBetweenStrokes: 150,
         strokeFadeDuration: 0,
         showOutline: true,

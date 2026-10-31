@@ -182,3 +182,7 @@
 - E2E 강화: native animateStroke 호출 확인, hint/skipQuizStroke 호출시실패; 三의 첫완료획 및 모든상위g의 opacity/display/offset을 전체자동재생중 추적; native재생중실제TouchEvent 첫획채점. 기존동일화면쓰기/undo 테스트 유지. 단위22개 통과, E2E58개 예정.
 - 최종코드7b0d9c9, Actions41185865725 성공: 단위22개, 데스크톱/모바일 E2E58개(51초), Pages10초/HTTP·SHA smoke5초 통과. native 재생중 실제TouchEvent첫획 입력과 이전획/직접쓰기 전환 통과. 三의 전체시연 동안 첫완료획 및 상위그룹 연속표시 검증 통과.
 - 사용자확인링크 /preview/?v=7b0d9c9 . 이번엔 main의 native API로 복귀했으며 직접SVG제어·skipQuizStroke를 사용하지 않는다. main소스 자체는 수정/병합 안 함. 실제 사용자기기에서 체감 해결은 확인을 기다릴 것.
+
+## 2026-10-31 자동 획쓰기 감속
+- 사용자 요청: 자동 획쓰기가 빨라 조금 느리게. native strokeAnimationSpeed 배율1.2→0.9(속도25%감소, 획 소요시간 약33%증가). 재생/쓰기 전환 로직 변경 없음.
+- 로컬 check/단위22개/build:preview 성공. push 후 Actions 검증·배포 확인 예정.
